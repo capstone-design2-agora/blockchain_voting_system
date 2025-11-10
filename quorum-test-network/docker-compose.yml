@@ -1,9 +1,4 @@
 ---
-version: '3.6'
-
-
-
-
 x-quorum-def:
   &quorum-def
   restart: "on-failure"
@@ -141,8 +136,8 @@ services:
   rpcnode:
     << : *quorum-def
     ports:
-      - 10545:8545/tcp
-      - 10546:8546/tcp
+      - 9545:8545/tcp
+      - 9546:8546/tcp
       - 30303
     environment:
       - GOQUORUM_CONS_ALGO=${GOQUORUM_CONS_ALGO}

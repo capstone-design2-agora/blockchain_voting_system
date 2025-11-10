@@ -1,13 +1,22 @@
 .App {
   min-height: 100vh;
   margin: 0;
-  padding: 5.5rem 0 7.5rem;
+  padding: 0;
   display: flex;
   justify-content: center;
+  align-items: flex-start;
   font-family: "SF Pro Display", "SF Pro Text", -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
   background: linear-gradient(180deg, #eef2ff 0%, #dbeafe 100%);
   color: #0f172a;
+}
+
+.voting-app-container {
+  width: 100%;
+  min-height: 100vh;
+  padding: 5.5rem 0 7.5rem;
+  display: flex;
+  justify-content: center;
 }
 
 .layout {
@@ -215,6 +224,18 @@
 
 .wallet-button--secondary:hover {
   box-shadow: 0 10px 22px rgba(148, 163, 184, 0.35);
+}
+
+.wallet-button--nft {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.35), rgba(168, 85, 247, 0.45));
+  border-color: rgba(168, 85, 247, 0.55);
+  color: #f0e7ff;
+  font-weight: 700;
+}
+
+.wallet-button--nft:hover {
+  box-shadow: 0 10px 22px rgba(168, 85, 247, 0.45);
+  transform: translateY(-2px);
 }
 
 .hero-card {

@@ -1,0 +1,275 @@
+.register-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    padding: 20px;
+}
+
+.register-container {
+    background: white;
+    border-radius: 20px;
+    padding: 40px;
+    max-width: 600px;
+    width: 100%;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.register-container h1 {
+    text-align: center;
+    color: #333;
+    margin-bottom: 30px;
+}
+
+.wallet-info {
+    background-color: #f5f5f5;
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 30px;
+}
+
+.wallet-info-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.wallet-address {
+    font-family: monospace;
+    word-break: break-all;
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.wallet-address.placeholder {
+    color: #999;
+}
+
+.wallet-status {
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.wallet-status.connected {
+    background-color: rgba(76, 175, 80, 0.15);
+    color: #2e7d32;
+}
+
+.wallet-status.disconnected {
+    background-color: rgba(244, 67, 54, 0.15);
+    color: #c62828;
+}
+
+.connect-wallet-button {
+    margin-top: 15px;
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+    color: #0d3b4c;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.connect-wallet-button:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 20px rgba(143, 211, 244, 0.5);
+}
+
+.connect-wallet-button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.step-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 30px;
+}
+
+.step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.step-number {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: #e0e0e0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    margin-bottom: 8px;
+}
+
+.step.completed .step-number {
+    background-color: #4caf50;
+    color: white;
+}
+
+.step.active .step-number {
+    background-color: #2196f3;
+    color: white;
+}
+
+.step-line {
+    width: 100px;
+    height: 2px;
+    background-color: #e0e0e0;
+    margin: 0 20px 25px;
+}
+
+.step-line.active {
+    background-color: #2196f3;
+}
+
+.register-info {
+    margin-top: 30px;
+}
+
+.name-display {
+    text-align: center;
+    margin-bottom: 30px;
+    padding: 20px;
+    background-color: #f9f9f9;
+    border-radius: 10px;
+}
+
+.name-display .label {
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 5px;
+}
+
+.name-display .value {
+    color: #333;
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+.warning-box {
+    background-color: #fff3cd;
+    border-left: 4px solid #ff9800;
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+}
+
+.warning-box h3 {
+    margin-top: 0;
+    color: #333;
+}
+
+.warning-box ul {
+    margin: 10px 0 0;
+    padding-left: 20px;
+}
+
+.warning-box li {
+    margin-bottom: 10px;
+    line-height: 1.6;
+}
+
+.button-group {
+    display: flex;
+    gap: 15px;
+}
+
+.back-button,
+.mint-button {
+    flex: 1;
+    padding: 15px;
+    border: none;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.back-button {
+    background-color: #e0e0e0;
+    color: #333;
+}
+
+.back-button:hover {
+    background-color: #d0d0d0;
+}
+
+.mint-button {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+}
+
+.mint-button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(245, 87, 108, 0.4);
+}
+
+.mint-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.loading-section,
+.success-section {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #f5576c;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 20px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.success-icon {
+    font-size: 4rem;
+    margin-bottom: 20px;
+}
+
+.small-text {
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.error-message {
+    background-color: #fee;
+    border-left: 4px solid #f44336;
+    padding: 15px;
+    border-radius: 5px;
+    margin: 20px 0;
+}
+
+.error-message p {
+    color: #d32f2f;
+    margin: 0;
+    white-space: pre-line;
+}
+
+.verifier-info {
+    margin-top: 20px;
+    text-align: center;
+    color: #999;
+    font-size: 0.85rem;
+}

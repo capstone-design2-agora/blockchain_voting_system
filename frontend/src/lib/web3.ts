@@ -1,257 +1,151 @@
 import Web3 from "web3";
 
-const fallbackRpc = process.env.REACT_APP_RPC;
-const browserProvider =
-  typeof window !== "undefined" ? (window as any).ethereum : undefined;
+const RPC_URL = process.env.REACT_APP_RPC || "http://localhost:9545";
 
-const fallbackProvider = fallbackRpc
-  ? new Web3.providers.HttpProvider(fallbackRpc)
-  : null;
+let web3Instance: Web3 | null = null;
 
-let fallbackWeb3Instance: Web3 | null = fallbackProvider
-  ? new Web3(fallbackProvider)
-  : null;
-let browserWeb3Instance: Web3 | null = browserProvider
-  ? new Web3(browserProvider)
-  : null;
-const missingProviderMessage =
-  "RPC 엔드포인트가 설정되지 않았고 브라우저 지갑도 감지되지 않았어요. frontend/.env.local 파일의 REACT_APP_RPC를 확인하거나 MetaMask를 연결해 주세요.";
-
-const expectedChainName = process.env.REACT_APP_CHAIN_NAME ?? "Quorum Local";
-const expectedChainIdRaw =
-  process.env.REACT_APP_CHAIN_ID ??
-  process.env.REACT_APP_QUORUM_CHAIN_ID ??
-  "0x539"; // 1337 in hex
-const expectedChainId = normalizeChainId(expectedChainIdRaw);
-const expectedChainDecimal = expectedChainId
-  ? Number.parseInt(expectedChainId, 16)
-  : null;
-
-type AccountsChangedCallback = (
-  accounts: string[]
-) => void | Promise<void>;
-type ChainChangedCallback = (chainId: string) => void | Promise<void>;
-
-const accountsChangedCallbacks = new Set<AccountsChangedCallback>();
-const chainChangedCallbacks = new Set<ChainChangedCallback>();
-let eventsBound = false;
-let lastKnownChainId: string | null = null;
-
-function normalizeChainId(
-  value: string | number | bigint | null | undefined
-): string | null {
-  if (value === null || value === undefined) {
-    return null;
-  }
-
-  if (typeof value === "number" || typeof value === "bigint") {
-    return `0x${value.toString(16)}`;
-  }
-
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  if (/^0x/i.test(trimmed)) {
-    const parsed = Number.parseInt(trimmed, 16);
-    if (Number.isNaN(parsed)) {
-      return null;
+export function getWeb3(): Web3 {
+    if (!web3Instance) {
+        if (typeof window !== "undefined" && (window as any).ethereum) {
+            web3Instance = new Web3((window as any).ethereum);
+        } else {
+            web3Instance = new Web3(new Web3.providers.HttpProvider(RPC_URL));
+        }
     }
-    return `0x${parsed.toString(16)}`;
-  }
-
-  const decimal = Number.parseInt(trimmed, 10);
-  if (Number.isNaN(decimal)) {
-    return null;
-  }
-  return `0x${decimal.toString(16)}`;
+    return web3Instance;
 }
 
-function bindProviderEvents(): void {
-  if (eventsBound || !browserProvider?.on) {
-    return;
-  }
-
-  eventsBound = true;
-  browserProvider.on("accountsChanged", (accounts: string[]) => {
-    accountsChangedCallbacks.forEach((callback) => {
-      Promise.resolve(callback(accounts)).catch((error) =>
-        console.warn("Account change handler failed:", error)
-      );
-    });
-  });
-
-  browserProvider.on("chainChanged", (chainId: string | number) => {
-    const normalized = normalizeChainId(chainId);
-    if (normalized) {
-      lastKnownChainId = normalized;
-      if (!isExpectedChain(normalized)) {
-        console.warn(
-          `Wallet connected to chain ${normalized}, expected ${expectedChainId}.`
-        );
-      }
-
-      if (!browserWeb3Instance) {
-        browserWeb3Instance = new Web3(browserProvider as any);
-      }
+export async function connectWallet(): Promise<string[]> {
+    if (typeof window === "undefined" || !(window as any).ethereum) {
+        throw new Error("MetaMask를 설치해주세요.");
     }
-    const payload = typeof chainId === "string" ? chainId : String(chainId);
-    chainChangedCallbacks.forEach((callback) => {
-      Promise.resolve(callback(payload)).catch((error) =>
-        console.warn("Chain change handler failed:", error)
-      );
-    });
-  });
-}
 
-async function readChainId(): Promise<string | null> {
-  if (browserProvider?.request) {
     try {
-      const chainId = await browserProvider.request({ method: "eth_chainId" });
-      return normalizeChainId(chainId as string);
-    } catch (error) {
-      console.warn("Unable to read chain from wallet provider:", error);
+        const accounts = await (window as any).ethereum.request({
+            method: "eth_requestAccounts",
+        });
+        return accounts;
+    } catch (error: any) {
+        if (error.code === 4001) {
+            throw new Error("지갑 연결이 거부되었습니다.");
+        }
+        throw error;
     }
-  }
+}
 
-  try {
-    const numeric = await requireWeb3Instance().eth.getChainId();
-    return normalizeChainId(numeric);
-  } catch (error) {
-    console.warn("Unable to read chain ID from RPC provider:", error);
-    return null;
-  }
+export function onAccountsChanged(callback: (accounts: string[]) => void): () => void {
+    if (typeof window === "undefined" || !(window as any).ethereum) {
+        return () => { };
+    }
+
+    const handler = (accounts: string[]) => {
+        callback(accounts);
+    };
+
+    (window as any).ethereum.on("accountsChanged", handler);
+
+    return () => {
+        (window as any).ethereum.removeListener("accountsChanged", handler);
+    };
+}
+
+export async function switchNetwork(
+    chainId: string,
+    chainName: string,
+    rpcUrl: string
+): Promise<void> {
+    if (typeof window === "undefined" || !(window as any).ethereum) {
+        throw new Error("MetaMask를 설치해주세요.");
+    }
+
+    try {
+        await (window as any).ethereum.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId }],
+        });
+    } catch (error: any) {
+        if (error.code === 4902) {
+            await (window as any).ethereum.request({
+                method: "wallet_addEthereumChain",
+                params: [
+                    {
+                        chainId,
+                        chainName,
+                        rpcUrls: [rpcUrl],
+                    },
+                ],
+            });
+        } else {
+            throw error;
+        }
+    }
+}
+
+export function onChainChanged(callback: (chainId: string) => void): () => void {
+    if (typeof window === "undefined" || !(window as any).ethereum) {
+        return () => { };
+    }
+
+    const handler = (chainId: string) => {
+        callback(chainId);
+    };
+
+    (window as any).ethereum.on("chainChanged", handler);
+
+    return () => {
+        (window as any).ethereum.removeListener("chainChanged", handler);
+    };
 }
 
 export function hasBrowserWallet(): boolean {
-  return Boolean(browserProvider?.request);
+    return typeof window !== "undefined" && !!(window as any).ethereum;
+}
+
+export function isExpectedChain(chainId: string): boolean {
+    return chainId === CHAIN_ID;
 }
 
 export function getExpectedChainLabel(): string {
-  if (!expectedChainId) {
-    return expectedChainName;
-  }
-  if (expectedChainDecimal !== null) {
-    return `${expectedChainName} (#${expectedChainDecimal})`;
-  }
-  return `${expectedChainName} (${expectedChainId})`;
-}
-
-export function isExpectedChain(
-  chainId: string | number | null | undefined
-): boolean {
-  if (!expectedChainId) {
-    return true;
-  }
-  const normalized = normalizeChainId(chainId);
-  if (!normalized) {
-    return true;
-  }
-  return normalized === expectedChainId;
+    return CHAIN_NAME;
 }
 
 export async function ensureWalletConnection(): Promise<void> {
-  if (!browserProvider?.request) {
-    if (fallbackRpc) {
-      return;
+    if (!hasBrowserWallet()) {
+        throw new Error("MetaMask를 설치해주세요.");
     }
-    throw new Error(
-      "브라우저 지갑이 감지되지 않았어요. MetaMask 또는 호환 지갑을 설치해 주세요."
-    );
-  }
 
-  await browserProvider.request({ method: "eth_requestAccounts" });
-  await assertCorrectChain();
-}
-
-export async function assertCorrectChain(): Promise<void> {
-  const currentChainId = await getActiveChainId();
-  if (!currentChainId || !expectedChainId) {
-    return;
-  }
-
-  if (!isExpectedChain(currentChainId)) {
-    const readableCurrent =
-      currentChainId && currentChainId.startsWith("0x")
-        ? Number.parseInt(currentChainId, 16)
-        : currentChainId;
-    const readableExpected =
-      expectedChainDecimal !== null ? expectedChainDecimal : expectedChainId;
-    throw new Error(
-      `지갑이 올바른 네트워크에 연결되어 있지 않아요. 현재 체인: ${readableCurrent}, 기대 체인: ${readableExpected}`
-    );
-  }
-}
-
-export async function getActiveChainId(): Promise<string | null> {
-  if (lastKnownChainId) {
-    return lastKnownChainId;
-  }
-  lastKnownChainId = await readChainId();
-  return lastKnownChainId;
-}
-
-export function onAccountsChanged(
-  callback: AccountsChangedCallback
-): () => void {
-  accountsChangedCallbacks.add(callback);
-  bindProviderEvents();
-  return () => accountsChangedCallbacks.delete(callback);
-}
-
-export function onChainChanged(callback: ChainChangedCallback): () => void {
-  chainChangedCallbacks.add(callback);
-  bindProviderEvents();
-  return () => chainChangedCallbacks.delete(callback);
+    const accounts = await connectWallet();
+    if (accounts.length === 0) {
+        throw new Error("지갑 연결에 실패했습니다.");
+    }
 }
 
 export async function disconnectWallet(): Promise<void> {
-  if (!browserProvider?.request) {
-    return;
-  }
+    console.log("🔌 disconnectWallet 호출됨");
 
-  const permissionsPayload = [{ eth_accounts: {} }];
-  try {
-    await browserProvider.request({
-      method: "wallet_revokePermissions",
-      params: permissionsPayload,
-    });
-  } catch (revokeError) {
-    try {
-      await browserProvider.request({
-        method: "wallet_requestPermissions",
-        params: permissionsPayload,
-      });
-    } catch (requestError) {
-      console.warn("Wallet disconnect request failed:", requestError);
+    // 최신 MetaMask에서 지원하는 wallet_revokePermissions 시도
+    if ((window as any).ethereum) {
+        try {
+            console.log("📡 wallet_revokePermissions 시도...");
+            const result = await (window as any).ethereum.request({
+                method: 'wallet_revokePermissions',
+                params: [{ eth_accounts: {} }]
+            });
+            console.log("✓ 지갑 연결 권한이 성공적으로 취소되었습니다.", result);
+            web3Instance = null;
+        } catch (error: any) {
+            console.warn("⚠️ wallet_revokePermissions 실패:", error);
+            console.log("에러 코드:", error.code);
+            console.log("에러 메시지:", error.message);
+            // 실패해도 로컬 상태는 정리
+            web3Instance = null;
+            throw error; // 에러를 상위로 전달하여 폴백 처리 가능하도록
+        }
+    } else {
+        console.warn("⚠️ MetaMask를 찾을 수 없습니다.");
+        web3Instance = null;
     }
-  } finally {
-    accountsChangedCallbacks.forEach((callback) => {
-      Promise.resolve(callback([])).catch((error) =>
-        console.warn("Account handler failed after disconnect:", error)
-      );
-    });
-  }
 }
 
-function requireWeb3Instance(): Web3 {
-  const resolved = browserWeb3Instance ?? fallbackWeb3Instance;
-  if (!resolved) {
-    throw new Error(missingProviderMessage);
-  }
-  return resolved;
-}
-
-export function getWeb3(): Web3 {
-  return requireWeb3Instance();
-}
-
-export function getReadOnlyWeb3(): Web3 {
-  if (fallbackWeb3Instance) {
-    return fallbackWeb3Instance;
-  }
-  return getWeb3();
-}
-
-bindProviderEvents();
+export const CHAIN_ID = process.env.REACT_APP_CHAIN_ID || "0x539";
+export const CHAIN_NAME = process.env.REACT_APP_CHAIN_NAME || "Quorum Local";

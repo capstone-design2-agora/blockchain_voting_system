@@ -137,8 +137,8 @@ services:
     depends_on:
       - validator1
     ports:
-      - 8545:8545/tcp
-      - 8546:8546/tcp
+      - 9545:8545/tcp
+      - 9546:8546/tcp
     networks:
       quorum-dev-quickstart:
         ipv4_address: 172.16.239.15

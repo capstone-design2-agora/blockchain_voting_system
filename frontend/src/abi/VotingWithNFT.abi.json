@@ -2,14 +2,14 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "citizenSBT_",
-        "type": "address"
+        "internalType": "string",
+        "name": "name_",
+        "type": "string"
       },
       {
-        "internalType": "address",
-        "name": "rewardNFT_",
-        "type": "address"
+        "internalType": "string",
+        "name": "symbol_",
+        "type": "string"
       },
       {
         "internalType": "string[]",
@@ -57,18 +57,106 @@
     "signature": "constructor"
   },
   {
-    "inputs": [],
-    "name": "AlreadyVoted",
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      }
+    ],
+    "name": "ERC721IncorrectOwner",
     "type": "error"
   },
   {
-    "inputs": [],
-    "name": "InvalidBallotId",
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "operator",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      }
+    ],
+    "name": "ERC721InsufficientApproval",
     "type": "error"
   },
   {
-    "inputs": [],
-    "name": "InvalidSchedule",
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "approver",
+        "type": "address"
+      }
+    ],
+    "name": "ERC721InvalidApprover",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "operator",
+        "type": "address"
+      }
+    ],
+    "name": "ERC721InvalidOperator",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      }
+    ],
+    "name": "ERC721InvalidOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "receiver",
+        "type": "address"
+      }
+    ],
+    "name": "ERC721InvalidReceiver",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      }
+    ],
+    "name": "ERC721InvalidSender",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      }
+    ],
+    "name": "ERC721NonexistentToken",
     "type": "error"
   },
   {
@@ -94,24 +182,56 @@
     "type": "error"
   },
   {
-    "inputs": [],
-    "name": "ProposalDoesNotExist",
-    "type": "error"
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "approved",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      }
+    ],
+    "name": "Approval",
+    "type": "event",
+    "signature": "0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925"
   },
   {
-    "inputs": [],
-    "name": "VoterNotVerified",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "VotingClosed",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "VotingNotOpen",
-    "type": "error"
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "operator",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "approved",
+        "type": "bool"
+      }
+    ],
+    "name": "ApprovalForAll",
+    "type": "event",
+    "signature": "0x17307eab39ab6107e8899845ad3d59bd9653f200f220920489ca2b5937696c31"
   },
   {
     "anonymous": false,
@@ -219,6 +339,32 @@
       {
         "indexed": true,
         "internalType": "address",
+        "name": "from",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      }
+    ],
+    "name": "Transfer",
+    "type": "event",
+    "signature": "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
         "name": "voter",
         "type": "address"
       },
@@ -231,7 +377,7 @@
       {
         "indexed": true,
         "internalType": "uint256",
-        "name": "rewardTokenId",
+        "name": "tokenId",
         "type": "uint256"
       }
     ],
@@ -258,6 +404,46 @@
     "stateMutability": "nonpayable",
     "type": "function",
     "signature": "0x2fdae3c5"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      }
+    ],
+    "name": "approve",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "signature": "0x095ea7b3"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      }
+    ],
+    "name": "balanceOf",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "constant": true,
+    "signature": "0x70a08231"
   },
   {
     "inputs": [],
@@ -301,8 +487,8 @@
             "type": "uint256"
           }
         ],
-        "internalType": "struct VotingWithSBT.BallotMetadata",
-        "name": "ballot",
+        "internalType": "struct VotingWithNFT.BallotMetadata",
+        "name": "",
         "type": "tuple"
       }
     ],
@@ -314,30 +500,15 @@
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      }
+    ],
+    "name": "getApproved",
+    "outputs": [
+      {
         "internalType": "address",
-        "name": "voter",
-        "type": "address"
-      }
-    ],
-    "name": "canVote",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function",
-    "constant": true,
-    "signature": "0xadfaa72e"
-  },
-  {
-    "inputs": [],
-    "name": "citizenSBT",
-    "outputs": [
-      {
-        "internalType": "contract CitizenSBT",
         "name": "",
         "type": "address"
       }
@@ -345,34 +516,7 @@
     "stateMutability": "view",
     "type": "function",
     "constant": true,
-    "signature": "0xdd4e6de5"
-  },
-  {
-    "inputs": [],
-    "name": "getAllProposals",
-    "outputs": [
-      {
-        "components": [
-          {
-            "internalType": "string",
-            "name": "name",
-            "type": "string"
-          },
-          {
-            "internalType": "uint256",
-            "name": "voteCount",
-            "type": "uint256"
-          }
-        ],
-        "internalType": "struct VotingWithSBT.Proposal[]",
-        "name": "proposals",
-        "type": "tuple[]"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function",
-    "constant": true,
-    "signature": "0xcceb68f5"
+    "signature": "0x081812fc"
   },
   {
     "inputs": [
@@ -397,8 +541,8 @@
             "type": "uint256"
           }
         ],
-        "internalType": "struct VotingWithSBT.Proposal",
-        "name": "proposal",
+        "internalType": "struct VotingWithNFT.Proposal",
+        "name": "",
         "type": "tuple"
       }
     ],
@@ -408,24 +552,37 @@
     "signature": "0xc7f758a8"
   },
   {
-    "inputs": [],
-    "name": "getVotingStats",
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      }
+    ],
+    "name": "getReceipt",
     "outputs": [
       {
-        "internalType": "uint256",
-        "name": "totalVotes",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "turnoutPercentage",
-        "type": "uint256"
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "proposalId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "blockNumber",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct VotingWithNFT.BallotReceipt",
+        "name": "",
+        "type": "tuple"
       }
     ],
     "stateMutability": "view",
     "type": "function",
     "constant": true,
-    "signature": "0x76804a03"
+    "signature": "0xb63e6ac3"
   },
   {
     "inputs": [
@@ -449,6 +606,47 @@
     "signature": "0x09eef43e"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "operator",
+        "type": "address"
+      }
+    ],
+    "name": "isApprovedForAll",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "constant": true,
+    "signature": "0xe985e9c5"
+  },
+  {
+    "inputs": [],
+    "name": "name",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "constant": true,
+    "signature": "0x06fdde03"
+  },
+  {
     "inputs": [],
     "name": "owner",
     "outputs": [
@@ -464,12 +662,33 @@
     "signature": "0x8da5cb5b"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      }
+    ],
+    "name": "ownerOf",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "constant": true,
+    "signature": "0x6352211e"
+  },
+  {
     "inputs": [],
     "name": "proposalCount",
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "count",
+        "name": "",
         "type": "uint256"
       }
     ],
@@ -487,19 +706,157 @@
     "signature": "0x715018a6"
   },
   {
-    "inputs": [],
-    "name": "rewardNFT",
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "from",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      }
+    ],
+    "name": "safeTransferFrom",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "signature": "0x42842e0e"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "from",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes",
+        "name": "data",
+        "type": "bytes"
+      }
+    ],
+    "name": "safeTransferFrom",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "signature": "0xb88d4fde"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "operator",
+        "type": "address"
+      },
+      {
+        "internalType": "bool",
+        "name": "approved",
+        "type": "bool"
+      }
+    ],
+    "name": "setApprovalForAll",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "signature": "0xa22cb465"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes4",
+        "name": "interfaceId",
+        "type": "bytes4"
+      }
+    ],
+    "name": "supportsInterface",
     "outputs": [
       {
-        "internalType": "contract VotingRewardNFT",
+        "internalType": "bool",
         "name": "",
-        "type": "address"
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
     "type": "function",
     "constant": true,
-    "signature": "0xc8ea4dd6"
+    "signature": "0x01ffc9a7"
+  },
+  {
+    "inputs": [],
+    "name": "symbol",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "constant": true,
+    "signature": "0x95d89b41"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      }
+    ],
+    "name": "tokenURI",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "constant": true,
+    "signature": "0xc87b56dd"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "from",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      }
+    ],
+    "name": "transferFrom",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "signature": "0x23b872dd"
   },
   {
     "inputs": [
@@ -584,33 +941,12 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "rewardTokenId",
+        "name": "tokenId",
         "type": "uint256"
       }
     ],
     "stateMutability": "nonpayable",
     "type": "function",
     "signature": "0x0121b93f"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "name": "voterChoice",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function",
-    "constant": true,
-    "signature": "0xad84c2da"
   }
 ]

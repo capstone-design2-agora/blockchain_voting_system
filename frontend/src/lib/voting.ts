@@ -1,11 +1,7 @@
 import type { Contract } from "web3";
 import type { AbiItem } from "web3-utils";
-import {
-  ensureWalletConnection,
-  getReadOnlyWeb3,
-  getWeb3,
-} from "./web3";
-import abi from "../abi/Voting.json";
+import { getWeb3 } from "./web3";
+import VotingWithSBTAbi from "../abi/VotingWithSBT.abi.json";
 
 export type Proposal = {
   id: number;
@@ -13,8 +9,8 @@ export type Proposal = {
   voteCount: number;
 };
 
-const contractAddress = process.env.REACT_APP_VOTING_ADDRESS;
-const typedAbi = abi as AbiItem[];
+const contractAddress = process.env.REACT_APP_VOTING_CONTRACT_ADDRESS;
+const typedAbi = VotingWithSBTAbi as AbiItem[];
 let cachedWriteContract: Contract<any> | null = null;
 let cachedReadContract: Contract<any> | null = null;
 
@@ -39,18 +35,17 @@ function assertVotingContract(
 ): Contract<any> {
   if (!contractAddress) {
     throw new Error(
-      "스마트 컨트랙트 주소가 설정되지 않았어요. frontend/.env.local 파일에서 REACT_APP_VOTING_ADDRESS를 확인해 주세요."
+      "스마트 컨트랙트 주소가 설정되지 않았어요. frontend/.env.local 파일에서 REACT_APP_VOTING_CONTRACT_ADDRESS를 확인해 주세요."
     );
   }
+  const web3 = getWeb3();
   if (mode === "read") {
     if (!cachedReadContract) {
-      const web3 = getReadOnlyWeb3();
       cachedReadContract = new web3.eth.Contract(typedAbi, contractAddress);
     }
     return cachedReadContract;
   }
   if (!cachedWriteContract) {
-    const web3 = getWeb3();
     cachedWriteContract = new web3.eth.Contract(typedAbi, contractAddress);
   }
   return cachedWriteContract;
@@ -87,7 +82,6 @@ export async function hasVoted(address: string): Promise<boolean> {
 
 export async function castVote(proposalId: number): Promise<void> {
   const contract = assertVotingContract("write");
-  await ensureWalletConnection();
   const web3 = getWeb3();
   const accounts = await web3.eth.getAccounts();
   const from = accounts[0];
@@ -96,7 +90,8 @@ export async function castVote(proposalId: number): Promise<void> {
     throw new Error("No account available for sending the transaction.");
   }
 
-  await contract.methods.vote(proposalId).send({ from, gasPrice: "0" });
+  const gasPrice = await web3.eth.getGasPrice();
+  await contract.methods.vote(proposalId).send({ from, gasPrice: String(gasPrice) });
 }
 
 export async function fetchBallotMetadata(): Promise<ContractBallotMetadata> {

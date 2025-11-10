@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   calculateTurnout,
   castVote,
@@ -17,6 +18,7 @@ import {
   onAccountsChanged,
   onChainChanged,
 } from "../lib/web3";
+import { checkHasSBT } from "../lib/sbt";
 
 type CandidateRecord = {
   id: number;
@@ -118,6 +120,7 @@ const FALLBACK_BALLOTS: BallotMeta[] = [
 ];
 
 export function VotingApp() {
+  const navigate = useNavigate();
   const [candidates, setCandidates] = useState<CandidateRecord[]>([]);
   const [status, setStatus] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
@@ -318,10 +321,21 @@ export function VotingApp() {
   }, [expectedChainLabel, loadCandidates]);
 
   const handleDisconnect = useCallback(async () => {
-    if (!hasBrowserWallet()) {
+    const clearAndRedirect = () => {
       setCurrentUser("익명 유권자");
       setUserHasVoted(false);
+      sessionStorage.clear();
+      localStorage.removeItem("walletAddress");
+      navigate("/auth");
+    };
+
+    if (!window.confirm("지갑 연결을 해제하시겠습니까?\n\nMetaMask에서 직접 연결을 해제하려면:\n1. MetaMask 확장 프로그램 클릭\n2. 연결된 사이트 관리\n3. 이 사이트 연결 해제")) {
+      return;
+    }
+
+    if (!hasBrowserWallet()) {
       setStatus("연결된 지갑이 없어 UI 상태만 초기화했어요.");
+      clearAndRedirect();
       return;
     }
 
@@ -332,10 +346,9 @@ export function VotingApp() {
       console.error(error);
       setStatus("지갑 연결 해제에 실패했어요. 지갑에서 직접 연결을 종료해 주세요.");
     } finally {
-      setCurrentUser("익명 유권자");
-      setUserHasVoted(false);
+      clearAndRedirect();
     }
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     void loadBallotMetadata();
@@ -429,25 +442,37 @@ export function VotingApp() {
         const web3Instance = getWeb3();
         const accounts = await web3Instance.eth.getAccounts();
         const primaryAccount = accounts[0];
-        if (primaryAccount) {
-          setCurrentUser(shortenAddress(primaryAccount));
-          try {
-            const already = await hasVoted(primaryAccount);
-            setUserHasVoted(already);
-          } catch (checkError) {
-            console.warn("Unable to determine vote status:", checkError);
-          }
-        } else {
-          setCurrentUser("익명 유권자");
-          setUserHasVoted(false);
+
+        if (!primaryAccount) {
+          // No wallet connected, redirect to auth
+          navigate("/auth");
+          return;
+        }
+
+        // Check if user has SBT
+        const hasSBT = await checkHasSBT(primaryAccount);
+        if (!hasSBT) {
+          // No SBT, redirect to auth
+          navigate("/auth");
+          return;
+        }
+
+        setCurrentUser(shortenAddress(primaryAccount));
+
+        try {
+          const already = await hasVoted(primaryAccount);
+          setUserHasVoted(already);
+        } catch (checkError) {
+          console.warn("Unable to determine vote status:", checkError);
         }
       } catch (error) {
         console.warn("Account detection failed:", error);
+        navigate("/auth");
       }
     }
 
     void detectUser();
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     const unsubscribeAccounts = onAccountsChanged(async (accounts) => {
@@ -508,240 +533,249 @@ export function VotingApp() {
   const walletConnected = currentUser !== "익명 유권자";
 
   return (
-    <section className="layout">
-      <div className="layout-top">
-        <aside className="nav-panel">
-          <div className="nav-brand">
-            <span className="nav-mark">A</span>
-            <span className="nav-title">AGORA</span>
-          </div>
-
-          <div className="nav-section">
-            <span className="nav-section-label">투표 목록</span>
-            <ul className="nav-list">
-              {ballots.map((ballot) => {
-                const isActive = ballot.id === activeBallot.id;
-                return (
-                  <li key={ballot.id}>
-                    <button
-                      type="button"
-                      className={`nav-item ${isActive ? "nav-item--active" : ""}`}
-                      onClick={() => handleBallotSelect(ballot)}
-                    >
-                      <div className="nav-item__text">
-                        <strong>{ballot.title}</strong>
-                        <span>{formatBallotStatus(deriveBallotStatus(ballot))}</span>
-                      </div>
-                      <time dateTime={ballot.closesAt}>
-                        {formatDate(ballot.closesAt)}
-                      </time>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-
-          <div className="nav-section">
-            <span className="nav-section-label">내 정보</span>
-            <div className="nav-card">
-              <div className="nav-card__title">지갑 주소</div>
-              <div className="nav-card__content">{currentUser}</div>
+    <div className="voting-app-container">
+      <section className="layout">
+        <div className="layout-top">
+          <aside className="nav-panel">
+            <div className="nav-brand">
+              <span className="nav-mark">A</span>
+              <span className="nav-title">AGORA</span>
             </div>
-            <div className="nav-card">
-              <div className="nav-card__title">참여 한 투표</div>
-              <div className="nav-card__content">
-                {
-                  ballots.filter(
-                    (b) => deriveBallotStatus(b) === "진행 중"
-                  ).length
-                }
-                건
-              </div>
-            </div>
-            <button
-              type="button"
-              className="wallet-button"
-              onClick={() => void connectWallet()}
-            >
-              {walletConnected ? "새로고침" : "지갑 연결하기"}
-            </button>
-            {walletConnected && (
-              <button
-                type="button"
-                className="wallet-button wallet-button--secondary"
-                onClick={() => void handleDisconnect()}
-              >
-                지갑 연결 해제
-              </button>
-            )}
-          </div>
-        </aside>
 
-        <div className="hero-card">
-          <div className="hero-main">
-            <span
-              className={`hero-chip hero-chip--${activeStatus === "진행 중" ? "open" : "closed"
-                }`}
-            >
-              {activeStatus === "진행 중" ? "Ongoing Vote" : "Closed Vote"}
-            </span>
-            <h1 className="hero-heading">{activeBallot.title}</h1>
-            <p className="hero-subheading">{activeBallot.description}</p>
-          </div>
-
-          <div className="hero-insights">
-            <div className="turnout-card">
-              <TurnoutGauge percent={turnoutPercent} />
-            </div>
-            <div className="meta-grid">
-              <div className="meta-item">
-                <span className="meta-label">투표 상태</span>
-                <strong>{formatBallotStatus(activeStatus)}</strong>
-              </div>
-              <div className="meta-item">
-                <span className="meta-label">현재 참여 인원</span>
-                <strong>{totalVotes.toLocaleString("ko-KR")}명</strong>
-              </div>
-              <div className="meta-item">
-                <span className="meta-label">마감시간</span>
-                <strong>{formatDate(activeBallot.closesAt)}</strong>
-              </div>
-              <div className="meta-item">
-                <span className="meta-label">투표 마감까지</span>
-                <strong>{timeToClose}</strong>
-              </div>
-              <div className="meta-item">
-                <span className="meta-label">발표까지 남은 시간</span>
-                <strong>{timeToAnnounce}</strong>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {loading && (
-        <div className="status-banner status-banner--loading">
-          실시간 데이터를 불러오고 있어요…
-        </div>
-      )}
-
-      {countingInProgress && (
-        <div className="status-banner status-banner--counting">
-          <strong>⏳ 개표 진행 중</strong>
-          <p>투표가 마감되었습니다. 결과는 {formatDate(activeBallot.announcesAt)}에 발표됩니다.</p>
-        </div>
-      )}
-
-      {status && !loading && (
-        <div
-          className={`status-banner ${demoMode ? "status-banner--demo" : "status-banner--info"
-            }`}
-        >
-          {status}
-        </div>
-      )}
-
-      <div className="candidate-grid">
-        {candidates.map((candidate) => {
-          // 결과 발표 후 최다득표자 확인
-          const maxVotes = Math.max(...candidates.map(c => c.votes));
-          const isWinner = revealResults && candidate.votes === maxVotes && maxVotes > 0;
-
-          return (
-            <article
-              key={candidate.name}
-              className={`candidate-card ${isWinner ? 'candidate-card--winner' : ''}`}
-              style={{ backgroundImage: candidate.accent }}
-            >
-              <header>
-                <span className="candidate-icon">{candidate.icon}</span>
-                <div>
-                  <h2>
-                    {candidate.name}
-                    {isWinner && <span className="winner-badge">🏆 당선</span>}
-                  </h2>
-                  <span className="candidate-votes">
-                    {revealResults
-                      ? `${candidate.votes.toLocaleString("ko-KR")} 표`
-                      : "집계 중"}
-                  </span>
-                </div>
-              </header>
-              <footer>
-                <div className="candidate-actions">
-                  <button
-                    type="button"
-                    className="candidate-pledge"
-                    onClick={() => openPledgeModal(candidate)}
-                  >
-                    공약 보기
-                  </button>
-                  <button
-                    type="button"
-                    className="candidate-button"
-                    disabled={userHasVoted || countingInProgress || !isBallotOpen(activeBallot) && !demoMode}
-                    onClick={() => void handleVote(candidate)}
-                  >
-                    {userHasVoted && !demoMode
-                      ? "이미 투표 완료"
-                      : countingInProgress
-                        ? "투표 마감됨"
-                        : !isBallotOpen(activeBallot) && !demoMode
-                          ? "투표 불가"
-                          : "지금 투표하기"}
-                  </button>
-                </div>
-                <span className="candidate-footnote">
-                  익명 서명 &middot; 온체인 영구 기록
-                </span>
-              </footer>
-            </article>
-          );
-        })}
-      </div>      {pledgeModal && (
-        <div
-          className="pledge-modal-overlay"
-          role="presentation"
-          onClick={closePledgeModal}
-        >
-          <div
-            className="pledge-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="pledge-modal-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <header className="pledge-modal__header">
-              <div>
-                <span className="pledge-modal__label">공약</span>
-                <h3 id="pledge-modal-title">{pledgeModal.name}</h3>
-              </div>
-              <button
-                type="button"
-                className="pledge-modal__close"
-                onClick={closePledgeModal}
-              >
-                닫기
-              </button>
-            </header>
-            <div className="pledge-modal__body">
-              <ul>
-                {(pledgeModal.pledges ?? [pledgeModal.description]).map(
-                  (pledge, index) => (
-                    <li key={`${pledgeModal.name}-${index}`}>{pledge}</li>
-                  )
-                )}
+            <div className="nav-section">
+              <span className="nav-section-label">투표 목록</span>
+              <ul className="nav-list">
+                {ballots.map((ballot) => {
+                  const isActive = ballot.id === activeBallot.id;
+                  return (
+                    <li key={ballot.id}>
+                      <button
+                        type="button"
+                        className={`nav-item ${isActive ? "nav-item--active" : ""}`}
+                        onClick={() => handleBallotSelect(ballot)}
+                      >
+                        <div className="nav-item__text">
+                          <strong>{ballot.title}</strong>
+                          <span>{formatBallotStatus(deriveBallotStatus(ballot))}</span>
+                        </div>
+                        <time dateTime={ballot.closesAt}>
+                          {formatDate(ballot.closesAt)}
+                        </time>
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
+
+            <div className="nav-section">
+              <span className="nav-section-label">내 정보</span>
+              <div className="nav-card">
+                <div className="nav-card__title">지갑 주소</div>
+                <div className="nav-card__content">{currentUser}</div>
+              </div>
+              <div className="nav-card">
+                <div className="nav-card__title">참여 한 투표</div>
+                <div className="nav-card__content">
+                  {
+                    ballots.filter(
+                      (b) => deriveBallotStatus(b) === "진행 중"
+                    ).length
+                  }
+                  건
+                </div>
+              </div>
+              <button
+                type="button"
+                className="wallet-button wallet-button--nft"
+                onClick={() => navigate("/my-nfts")}
+              >
+                📦 내 NFT 컬렉션 보기
+              </button>
+              <button
+                type="button"
+                className="wallet-button"
+                onClick={() => void connectWallet()}
+              >
+                {walletConnected ? "새로고침" : "지갑 연결하기"}
+              </button>
+              {walletConnected && (
+                <button
+                  type="button"
+                  className="wallet-button wallet-button--secondary"
+                  onClick={() => void handleDisconnect()}
+                >
+                  지갑 연결 해제
+                </button>
+              )}
+            </div>
+          </aside>
+
+          <div className="hero-card">
+            <div className="hero-main">
+              <span
+                className={`hero-chip hero-chip--${activeStatus === "진행 중" ? "open" : "closed"
+                  }`}
+              >
+                {activeStatus === "진행 중" ? "Ongoing Vote" : "Closed Vote"}
+              </span>
+              <h1 className="hero-heading">{activeBallot.title}</h1>
+              <p className="hero-subheading">{activeBallot.description}</p>
+            </div>
+
+            <div className="hero-insights">
+              <div className="turnout-card">
+                <TurnoutGauge percent={turnoutPercent} />
+              </div>
+              <div className="meta-grid">
+                <div className="meta-item">
+                  <span className="meta-label">투표 상태</span>
+                  <strong>{formatBallotStatus(activeStatus)}</strong>
+                </div>
+                <div className="meta-item">
+                  <span className="meta-label">현재 참여 인원</span>
+                  <strong>{totalVotes.toLocaleString("ko-KR")}명</strong>
+                </div>
+                <div className="meta-item">
+                  <span className="meta-label">마감시간</span>
+                  <strong>{formatDate(activeBallot.closesAt)}</strong>
+                </div>
+                <div className="meta-item">
+                  <span className="meta-label">투표 마감까지</span>
+                  <strong>{timeToClose}</strong>
+                </div>
+                <div className="meta-item">
+                  <span className="meta-label">발표까지 남은 시간</span>
+                  <strong>{timeToAnnounce}</strong>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      )}
-    </section>
-  );
-}
 
-type BallotStatus = "진행 중" | "예정" | "마감" | "개표 중";
+        {loading && (
+          <div className="status-banner status-banner--loading">
+            실시간 데이터를 불러오고 있어요…
+          </div>
+        )}
+
+        {countingInProgress && (
+          <div className="status-banner status-banner--counting">
+            <strong>⏳ 개표 진행 중</strong>
+            <p>투표가 마감되었습니다. 결과는 {formatDate(activeBallot.announcesAt)}에 발표됩니다.</p>
+          </div>
+        )}
+
+        {status && !loading && (
+          <div
+            className={`status-banner ${demoMode ? "status-banner--demo" : "status-banner--info"
+              }`}
+          >
+            {status}
+          </div>
+        )}
+
+        <div className="candidate-grid">
+          {candidates.map((candidate) => {
+            // 결과 발표 후 최다득표자 확인
+            const maxVotes = Math.max(...candidates.map(c => c.votes));
+            const isWinner = revealResults && candidate.votes === maxVotes && maxVotes > 0;
+
+            return (
+              <article
+                key={candidate.name}
+                className={`candidate-card ${isWinner ? 'candidate-card--winner' : ''}`}
+                style={{ backgroundImage: candidate.accent }}
+              >
+                <header>
+                  <span className="candidate-icon">{candidate.icon}</span>
+                  <div>
+                    <h2>
+                      {candidate.name}
+                      {isWinner && <span className="winner-badge">🏆 당선</span>}
+                    </h2>
+                    <span className="candidate-votes">
+                      {revealResults
+                        ? `${candidate.votes.toLocaleString("ko-KR")} 표`
+                        : "집계 중"}
+                    </span>
+                  </div>
+                </header>
+                <footer>
+                  <div className="candidate-actions">
+                    <button
+                      type="button"
+                      className="candidate-pledge"
+                      onClick={() => openPledgeModal(candidate)}
+                    >
+                      공약 보기
+                    </button>
+                    <button
+                      type="button"
+                      className="candidate-button"
+                      disabled={userHasVoted || countingInProgress || (!isBallotOpen(activeBallot) && !demoMode)}
+                      onClick={() => void handleVote(candidate)}
+                    >
+                      {(userHasVoted && !demoMode)
+                        ? "이미 투표 완료"
+                        : countingInProgress
+                          ? "투표 마감됨"
+                          : (!isBallotOpen(activeBallot) && !demoMode)
+                            ? "투표 불가"
+                            : "지금 투표하기"}
+                    </button>
+                  </div>
+                  <span className="candidate-footnote">
+                    익명 서명 &middot; 온체인 영구 기록
+                  </span>
+                </footer>
+              </article>
+            );
+          })}
+        </div>
+
+        {pledgeModal && (
+          <div
+            className="pledge-modal-overlay"
+            role="presentation"
+            onClick={closePledgeModal}
+          >
+            <div
+              className="pledge-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="pledge-modal-title"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <header className="pledge-modal__header">
+                <div>
+                  <span className="pledge-modal__label">공약</span>
+                  <h3 id="pledge-modal-title">{pledgeModal.name}</h3>
+                </div>
+                <button
+                  type="button"
+                  className="pledge-modal__close"
+                  onClick={closePledgeModal}
+                >
+                  닫기
+                </button>
+              </header>
+              <div className="pledge-modal__body">
+                <ul>
+                  {(pledgeModal.pledges ?? [pledgeModal.description]).map(
+                    (pledge, index) => (
+                      <li key={`${pledgeModal.name}-${index}`}>{pledge}</li>
+                    )
+                  )}
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+} type BallotStatus = "진행 중" | "예정" | "마감" | "개표 중";
 
 function deriveBallotStatus(
   ballot: BallotMeta,

@@ -39,13 +39,25 @@ blockchain-test/
 │   ├── docker-compose.yml        # 메인 compose 파일 (.env로 합의 알고리즘 선택)
 │   └── ...
 ├── quorum-lab/                   # 실험 스크립트 및 결과
-│   ├── contracts/VotingWithNFT.sol       # [추가] NFT 기반 투표 컨트랙트
-│   ├── deploy_contract.js                # [추가] 컨트랙트 배포 스크립트
-│   ├── setup_and_deploy.sh               # [추가] 네트워크 시작 + 배포 자동화
-│   ├── benchmark.py                      # [추가] 성능 벤치마크 스크립트
-│   ├── run_raft_benchmarks.sh            # [추가] Raft 벤치마크 실행 스크립트
-│   ├── run_qbft_benchmarks.sh            # [추가] QBFT 벤치마크 실행 스크립트
-│   └── check_nft_receipt.py              # [추가] NFT 트랜잭션 검증 스크립트
+│   ├── contracts/VotingWithNFT.sol       # NFT 기반 투표 컨트랙트
+│   ├── deploy_contract.js                # 컨트랙트 배포 스크립트
+│   ├── deploy.env.example                # [신규] 배포 설정 템플릿
+│   ├── redeploy_contract.sh              # [신규] 컨트랙트 재배포 스크립트
+│   ├── setup_and_deploy.sh               # 네트워크 시작 + 배포 자동화
+│   ├── benchmark.py                      # 성능 벤치마크 스크립트
+│   ├── run_raft_benchmarks.sh            # Raft 벤치마크 실행 스크립트
+│   ├── run_qbft_benchmarks.sh            # QBFT 벤치마크 실행 스크립트
+│   ├── cast_vote.js                      # [신규] 투표 트랜잭션 전송
+│   ├── check_vote.js                     # [신규] 투표 상태 확인
+│   ├── debug_transaction.js              # [신규] 트랜잭션 디버깅
+│   └── check_nft_receipt.py              # NFT 트랜잭션 검증 스크립트
+├── frontend/                     # [신규] React 기반 투표 UI
+│   ├── src/
+│   │   ├── components/VotingApp.tsx      # 투표 메인 컴포넌트
+│   │   ├── lib/voting.ts                 # 투표 로직
+│   │   └── lib/web3.ts                   # Web3 연결
+│   ├── package.json
+│   └── README.md
 ├── test_result/                  # 실험 결과 (gitignored, 샘플만 포함)
 │   ├── ibft/                     # IBFT 벤치마크 결과
 │   ├── qbft/                     # QBFT 벤치마크 결과
@@ -129,7 +141,48 @@ node deploy_contract.js
 - 네트워크 재시작(`docker compose restart` 또는 `down/up`)시 재배포 불필요
 - 완전 초기화(`docker compose down -v`)시에만 재배포 필요
 
-#### 4. 벤치마크 실행
+**컨트랙트 재배포**:
+
+네트워크는 유지한 채 새로운 컨트랙트를 배포하려면:
+
+```bash
+cd quorum-lab
+
+# 1. deploy.env 파일 수정 (투표 시간, 후보자 등)
+cp deploy.env.example deploy.env
+nano deploy.env  # 또는 원하는 에디터 사용
+
+# 2. 재배포 (자동으로 .env.local도 업데이트)
+./redeploy_contract.sh
+```
+
+#### 4. 프론트엔드 실행 (선택사항)
+
+웹 UI를 통해 투표하려면:
+
+```bash
+cd frontend
+
+# Node.js 의존성 설치 (최초 1회)
+npm install
+
+# .env.local 파일 설정
+cp .env.example .env.local
+# REACT_APP_VOTING_ADDRESS는 redeploy_contract.sh 실행 시 자동 업데이트됨
+
+# 개발 서버 시작
+npm start
+```
+
+브라우저에서 `http://localhost:3000` 접속하여 투표 UI 사용
+
+**주요 기능**:
+- MetaMask 연결
+- 후보자 목록 및 공약 확인
+- 투표 및 NFT 영수증 발행
+- 결과 발표 시간 이후 최다득표자 당선 표시
+
+#### 5. 벤치마크 실행
 
 ```bash
 cd quorum-lab
@@ -145,6 +198,23 @@ pip install web3 eth-account python-dotenv
 ```
 
 벤치마크 결과는 `test_result/[consensus]/[tps]/` 디렉토리에 저장됩니다.
+
+#### 6. 투표 테스트 (선택사항)
+
+CLI로 투표를 테스트하려면:
+
+```bash
+cd quorum-lab
+
+# 투표 상태 확인
+node check_vote.js
+
+# 투표하기 (proposal ID: 0, 1, 2...)
+node cast_vote.js --proposal 0
+
+# 트랜잭션 디버깅
+node debug_transaction.js
+```
 
 ### ⚠️ 합의 알고리즘 변경 시 주의사항
 
@@ -176,7 +246,7 @@ node deploy_contract.js
 
 **중요**: `docker-compose restart`나 `down/up`(볼륨 유지)는 genesis를 재적용하지 않으므로 `-v` 옵션이 필수입니다.
 
-#### 5. 결과 분석
+#### 7. 결과 분석
 
 실험 결과는 `test_result/BENCHMARK_ANALYSIS_REPORT.md`에서 확인할 수 있습니다.
 
@@ -197,10 +267,23 @@ test_result/
 
 ## 🔧 주요 추가/수정 파일
 
+### 프론트엔드
+- `frontend/src/components/VotingApp.tsx`: 메인 투표 UI 컴포넌트
+- `frontend/src/lib/voting.ts`: 투표 스마트 컨트랙트 연동
+- `frontend/src/lib/web3.ts`: Web3 연결 및 지갑 관리
+- `frontend/src/App.css`: UI 스타일링 (당선자 배지 포함)
+
 ### 스마트 컨트랙트 & 배포
 - `quorum-lab/contracts/VotingWithNFT.sol`: NFT 기반 투표 컨트랙트
 - `quorum-lab/deploy_contract.js`: 컨트랙트 배포 스크립트
+- `quorum-lab/deploy.env.example`: 배포 설정 템플릿
+- `quorum-lab/redeploy_contract.sh`: 컨트랙트 재배포 자동화
 - `quorum-lab/setup_and_deploy.sh`: 네트워크 시작 + 배포 자동화
+
+### 투표 도구
+- `quorum-lab/cast_vote.js`: 투표 트랜잭션 전송
+- `quorum-lab/check_vote.js`: 투표 상태 및 메타데이터 확인
+- `quorum-lab/debug_transaction.js`: 트랜잭션 디버깅
 
 ### 벤치마크 스크립트
 - `quorum-lab/benchmark.py`: 성능 측정 메인 스크립트
@@ -208,6 +291,13 @@ test_result/
 - `quorum-lab/run_qbft_benchmarks.sh`: QBFT 벤치마크 자동화
 - `quorum-lab/check_nft_receipt.py`: NFT 트랜잭션 검증
 - `quorum-lab/check_csv_results.py`: CSV 결과 분석
+
+### 디버깅 도구
+- `quorum-lab/diagnose.js`: 종합 진단
+- `quorum-lab/check_time.js`: 블록체인 시간 확인
+- `quorum-lab/check_ballot_times.py`: 투표 시간 검증
+- `quorum-lab/fix_ballot_schedule.js`: 투표 일정 수정
+- `quorum-lab/test_ballot_metadata.js`: 메타데이터 테스트
 
 ## 📝 실험 설정
 

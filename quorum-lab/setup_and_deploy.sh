@@ -9,8 +9,6 @@ NETWORK_DIR="${PROJECT_ROOT}/quorum-test-network"
 ARTIFACTS_DIR="${SCRIPT_DIR}/artifacts"
 FRONTEND_DIR="${PROJECT_ROOT}/frontend"
 FRONTEND_ABI_DIR="${FRONTEND_DIR}/src/abi"
-FRONTEND_ABI_TARGET="${FRONTEND_ABI_DIR}/Voting.json"
-CONTRACT_ABI_SOURCE="${ARTIFACTS_DIR}/VotingWithNFT.abi.json"
 FRONTEND_ENV_EXAMPLE="${FRONTEND_DIR}/.env.example"
 FRONTEND_ENV_FILE="${FRONTEND_DIR}/.env"
 FRONTEND_ENV_LOCAL="${FRONTEND_DIR}/.env.local"
@@ -26,7 +24,7 @@ if [[ -f "${DEPLOY_ENV_FILE}" ]]; then
     DEPLOY_ENV_SOURCED="true"
 fi
 
-DEFAULT_RPC_ENDPOINT="http://localhost:10545"
+DEFAULT_RPC_ENDPOINT="http://localhost:9545"
 DEFAULT_EXPECTED_VOTERS="${REACT_APP_EXPECTED_VOTERS:-1000}"
 DEFAULT_CHAIN_ID_HEX="${REACT_APP_CHAIN_ID:-0x539}"
 DEFAULT_CHAIN_NAME="${REACT_APP_CHAIN_NAME:-Quorum Local}"
@@ -111,15 +109,21 @@ replace_or_append_env_key() {
 }
 
 sync_frontend_abi() {
-    if [[ ! -f "${CONTRACT_ABI_SOURCE}" ]]; then
-        echo -e "${RED}✗ ABI file not found: ${CONTRACT_ABI_SOURCE}${NC}"
-        echo -e "${YELLOW}Please compile the contract before re-running this script.${NC}"
+    local sbt_abi="${ARTIFACTS_DIR}/CitizenSBT.abi.json"
+    local voting_abi="${ARTIFACTS_DIR}/VotingWithSBT.abi.json"
+    local reward_abi="${ARTIFACTS_DIR}/VotingRewardNFT.abi.json"
+    
+    if [[ ! -f "${sbt_abi}" ]] || [[ ! -f "${voting_abi}" ]] || [[ ! -f "${reward_abi}" ]]; then
+        echo -e "${RED}✗ ABI files not found in ${ARTIFACTS_DIR}${NC}"
+        echo -e "${YELLOW}Please compile the contracts before re-running this script.${NC}"
         exit 1
     fi
 
     mkdir -p "${FRONTEND_ABI_DIR}"
-    cp "${CONTRACT_ABI_SOURCE}" "${FRONTEND_ABI_TARGET}"
-    echo -e "${GREEN}✓ ABI synced to frontend at ${FRONTEND_ABI_TARGET}${NC}"
+    cp "${sbt_abi}" "${FRONTEND_ABI_DIR}/CitizenSBT.json"
+    cp "${voting_abi}" "${FRONTEND_ABI_DIR}/Voting.json"
+    cp "${reward_abi}" "${FRONTEND_ABI_DIR}/VotingRewardNFT.json"
+    echo -e "${GREEN}✓ ABIs synced to frontend at ${FRONTEND_ABI_DIR}${NC}"
 }
 
 write_env_example() {
@@ -160,20 +164,29 @@ ensure_env_file_exists() {
 }
 
 sync_frontend_env_files() {
-    local contract_address="$1"
+    local citizen_sbt_address="$1"
+    local voting_address="$2"
+    local reward_nft_address="$3"
+    local verifier_address="$4"
 
     ensure_env_template
     ensure_env_file_exists "${FRONTEND_ENV_FILE}"
     ensure_env_file_exists "${FRONTEND_ENV_LOCAL}"
 
-    local address_value="${contract_address:-<deployed-contract-address>}"
+    local sbt_value="${citizen_sbt_address:-<deployed-sbt-address>}"
+    local voting_value="${voting_address:-<deployed-voting-address>}"
+    local reward_value="${reward_nft_address:-<deployed-reward-address>}"
+    local verifier_value="${verifier_address:-<deployed-verifier-address>}"
 
     for env_file in "${FRONTEND_ENV_FILE}" "${FRONTEND_ENV_LOCAL}"; do
         replace_or_append_env_key "${env_file}" "REACT_APP_RPC" "${DEFAULT_RPC_ENDPOINT}"
         replace_or_append_env_key "${env_file}" "REACT_APP_EXPECTED_VOTERS" "${DEFAULT_EXPECTED_VOTERS}"
         replace_or_append_env_key "${env_file}" "REACT_APP_CHAIN_ID" "${DEFAULT_CHAIN_ID_HEX}"
         replace_or_append_env_key "${env_file}" "REACT_APP_CHAIN_NAME" "${DEFAULT_CHAIN_NAME}"
-        replace_or_append_env_key "${env_file}" "REACT_APP_VOTING_ADDRESS" "${address_value}"
+        replace_or_append_env_key "${env_file}" "REACT_APP_CITIZEN_SBT_ADDRESS" "${sbt_value}"
+        replace_or_append_env_key "${env_file}" "REACT_APP_VOTING_CONTRACT_ADDRESS" "${voting_value}"
+        replace_or_append_env_key "${env_file}" "REACT_APP_REWARD_NFT_ADDRESS" "${reward_value}"
+        replace_or_append_env_key "${env_file}" "REACT_APP_VERIFIER_ADDRESS" "${verifier_value}"
     done
 
     echo -e "${GREEN}✓ Updated frontend env files with contract metadata${NC}"
@@ -196,8 +209,8 @@ fi
 echo -e "${GREEN}✓ Consensus algorithm: ${CONSENSUS}${NC}"
 
 # 합의 알고리즘 변경 경고
-if [[ -f "${ARTIFACTS_DIR}/deployment.json" ]]; then
-    LAST_CONSENSUS=$(node -p "try { require('${ARTIFACTS_DIR}/deployment.json').network.consensus || '' } catch(e) { '' }" 2>/dev/null || echo "")
+if [[ -f "${ARTIFACTS_DIR}/sbt_deployment.json" ]]; then
+    LAST_CONSENSUS=$(node -p "try { require('${ARTIFACTS_DIR}/sbt_deployment.json').network.consensus || '' } catch(e) { '' }" 2>/dev/null || echo "")
     if [[ -n "$LAST_CONSENSUS" ]] && [[ "$LAST_CONSENSUS" != "$CONSENSUS" ]]; then
         echo -e "${RED}⚠ WARNING: Consensus algorithm changed from ${LAST_CONSENSUS} to ${CONSENSUS}${NC}"
         echo -e "${YELLOW}You must reset the blockchain data:${NC}"
@@ -279,15 +292,15 @@ echo -e "\n${YELLOW}[5/6] Checking smart contract deployment...${NC}"
 
 SHOULD_DEPLOY=false
 
-if [[ -f "${ARTIFACTS_DIR}/deployment.json" ]]; then
-    echo -e "${YELLOW}Found existing deployment.json${NC}"
+if [[ -f "${ARTIFACTS_DIR}/sbt_deployment.json" ]]; then
+    echo -e "${YELLOW}Found existing sbt_deployment.json${NC}"
     
     # 배포된 컨트랙트가 실제로 존재하는지 확인
-    CONTRACT_ADDRESS=$(node -p "require('${ARTIFACTS_DIR}/deployment.json').contract.address")
+    CITIZEN_SBT_ADDRESS=$(node -p "require('${ARTIFACTS_DIR}/sbt_deployment.json').contracts.CitizenSBT.address")
     
     RESPONSE=$(curl -s -X POST "${DEFAULT_RPC_ENDPOINT}" \
         -H "Content-Type: application/json" \
-        --data "{\"jsonrpc\":\"2.0\",\"method\":\"eth_getCode\",\"params\":[\"${CONTRACT_ADDRESS}\",\"latest\"],\"id\":1}")
+        --data "{\"jsonrpc\":\"2.0\",\"method\":\"eth_getCode\",\"params\":[\"${CITIZEN_SBT_ADDRESS}\",\"latest\"],\"id\":1}")
     
     CODE=$(echo "$RESPONSE" | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf8')).result")
     
@@ -295,16 +308,17 @@ if [[ -f "${ARTIFACTS_DIR}/deployment.json" ]]; then
         echo -e "${YELLOW}Contract not found on blockchain. Will redeploy.${NC}"
         SHOULD_DEPLOY=true
     else
-        echo -e "${GREEN}✓ Contract is deployed at ${CONTRACT_ADDRESS}${NC}"
+        echo -e "${GREEN}✓ Contracts are deployed${NC}"
+        echo -e "${GREEN}  CitizenSBT: ${CITIZEN_SBT_ADDRESS}${NC}"
     fi
 else
-    echo -e "${YELLOW}No deployment.json found. Will deploy contract.${NC}"
+    echo -e "${YELLOW}No sbt_deployment.json found. Will deploy contracts.${NC}"
     SHOULD_DEPLOY=true
 fi
 
 # 6. 스마트 컨트랙트 배포
 if [ "$SHOULD_DEPLOY" = true ]; then
-    echo -e "\n${YELLOW}[6/6] Deploying smart contract...${NC}"
+    echo -e "\n${YELLOW}[6/6] Deploying SBT system contracts...${NC}"
 
     if [[ -z "${PROPOSALS:-}" ]]; then
         PROPOSALS="${DEFAULT_PROPOSALS}"
@@ -339,28 +353,39 @@ if [ "$SHOULD_DEPLOY" = true ]; then
 
     export PROPOSALS BALLOT_ID BALLOT_TITLE BALLOT_DESCRIPTION
     export BALLOT_OPENS_AT BALLOT_CLOSES_AT BALLOT_ANNOUNCES_AT BALLOT_EXPECTED_VOTERS
+    export GOQUORUM_CONS_ALGO="${CONSENSUS}"
 
-    GOQUORUM_CONS_ALGO="${CONSENSUS}" node deploy_contract.js
+    node deploy_sbt_system.js
     
-    if [[ -f "${ARTIFACTS_DIR}/deployment.json" ]]; then
-        CONTRACT_ADDRESS=$(node -p "require('${ARTIFACTS_DIR}/deployment.json').contract.address")
-        echo -e "${GREEN}✓ Contract deployed successfully at ${CONTRACT_ADDRESS}${NC}"
+    if [[ -f "${ARTIFACTS_DIR}/sbt_deployment.json" ]]; then
+        CITIZEN_SBT_ADDRESS=$(node -p "require('${ARTIFACTS_DIR}/sbt_deployment.json').contracts.CitizenSBT.address")
+        VOTING_ADDRESS=$(node -p "require('${ARTIFACTS_DIR}/sbt_deployment.json').contracts.VotingWithSBT.address")
+        REWARD_NFT_ADDRESS=$(node -p "require('${ARTIFACTS_DIR}/sbt_deployment.json').contracts.VotingRewardNFT.address")
+        VERIFIER_ADDRESS=$(node -p "require('${ARTIFACTS_DIR}/sbt_deployment.json').contracts.CitizenSBT.verifier")
+        echo -e "${GREEN}✓ SBT system deployed successfully${NC}"
+        echo -e "${GREEN}  CitizenSBT: ${CITIZEN_SBT_ADDRESS}${NC}"
+        echo -e "${GREEN}  VotingWithSBT: ${VOTING_ADDRESS}${NC}"
+        echo -e "${GREEN}  VotingRewardNFT: ${REWARD_NFT_ADDRESS}${NC}"
     else
         echo -e "${RED}✗ Deployment failed${NC}"
         exit 1
     fi
 else
-    echo -e "\n${YELLOW}[6/6] Skipping deployment (contract already exists)${NC}"
+    echo -e "\n${YELLOW}[6/6] Skipping deployment (contracts already exist)${NC}"
 fi
 
 echo -e "\n${YELLOW}Syncing ABI with frontend...${NC}"
 sync_frontend_abi
 
-DEPLOYMENT_ADDRESS=$(node -p "try { require('${ARTIFACTS_DIR}/deployment.json').contract.address || '' } catch(e) { '' }")
-if [[ -z "${DEPLOYMENT_ADDRESS}" ]]; then
-    echo -e "${YELLOW}Deployment address not found. Frontend env files will contain a placeholder until deployment succeeds.${NC}"
+CITIZEN_SBT_ADDRESS=$(node -p "try { require('${ARTIFACTS_DIR}/sbt_deployment.json').contracts.CitizenSBT.address || '' } catch(e) { '' }")
+VOTING_ADDRESS=$(node -p "try { require('${ARTIFACTS_DIR}/sbt_deployment.json').contracts.VotingWithSBT.address || '' } catch(e) { '' }")
+REWARD_NFT_ADDRESS=$(node -p "try { require('${ARTIFACTS_DIR}/sbt_deployment.json').contracts.VotingRewardNFT.address || '' } catch(e) { '' }")
+VERIFIER_ADDRESS=$(node -p "try { require('${ARTIFACTS_DIR}/sbt_deployment.json').contracts.CitizenSBT.verifier || '' } catch(e) { '' }")
+
+if [[ -z "${CITIZEN_SBT_ADDRESS}" ]]; then
+    echo -e "${YELLOW}Deployment addresses not found. Frontend env files will contain placeholders until deployment succeeds.${NC}"
 fi
-sync_frontend_env_files "${DEPLOYMENT_ADDRESS}"
+sync_frontend_env_files "${CITIZEN_SBT_ADDRESS}" "${VOTING_ADDRESS}" "${REWARD_NFT_ADDRESS}" "${VERIFIER_ADDRESS}"
 
 # 완료
 echo -e "\n${GREEN}========================================${NC}"
@@ -368,11 +393,13 @@ echo -e "${GREEN}  Setup Complete!${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}Network:${NC} ${CONSENSUS}"
 echo -e "${GREEN}RPC Endpoint:${NC} ${DEFAULT_RPC_ENDPOINT}"
-echo -e "${GREEN}Contract Address:${NC} $(node -p "require('${ARTIFACTS_DIR}/deployment.json').contract.address" 2>/dev/null || echo 'N/A')"
+echo -e "${GREEN}CitizenSBT:${NC} $(node -p "require('${ARTIFACTS_DIR}/sbt_deployment.json').contracts.CitizenSBT.address" 2>/dev/null || echo 'N/A')"
+echo -e "${GREEN}VotingWithSBT:${NC} $(node -p "require('${ARTIFACTS_DIR}/sbt_deployment.json').contracts.VotingWithSBT.address" 2>/dev/null || echo 'N/A')"
+echo -e "${GREEN}VotingRewardNFT:${NC} $(node -p "require('${ARTIFACTS_DIR}/sbt_deployment.json').contracts.VotingRewardNFT.address" 2>/dev/null || echo 'N/A')"
 echo -e "${GREEN}Artifacts:${NC} ${ARTIFACTS_DIR}"
 echo ""
 echo -e "${YELLOW}Next steps:${NC}"
-echo -e "  1. Run benchmarks: ${GREEN}cd quorum-lab && ./run_raft_benchmarks.sh${NC}"
+echo -e "  1. Test SBT system: ${GREEN}cd quorum-lab && node verify_sbt.js${NC}"
 echo -e "  2. Check network: ${GREEN}cd quorum-test-network && docker compose ps${NC}"
 echo -e "  3. View logs: ${GREEN}cd quorum-test-network && docker compose logs -f validator1${NC}"
 echo ""

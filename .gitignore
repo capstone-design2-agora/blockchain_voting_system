@@ -155,3 +155,4 @@ quorum-test-network/smart_contracts/coverage/
 quorum-test-network/smart_contracts/cache/
 quorum-test-network/smart_contracts/artifacts/
 quorum-test-network/smart_contracts/node_modules/
+quorum-besu-network/.quorumDevQuickstart.lock
