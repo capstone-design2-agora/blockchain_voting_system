@@ -1,4 +1,3 @@
-````markdown
 # Blockchain-Based Voting System with SBT
 
 이 저장소는 **SBT(Soulbound Token) 기반 신원 검증**을 활용한 블록체인 투표 시스템입니다. Quorum 네트워크에서 시민권 검증, 투표, 그리고 참여 보상 NFT 발급까지 완전한 투표 프로세스를 구현합니다.
@@ -395,8 +394,3 @@ curl -X POST http://localhost:10545 \
 - [ERC-4973: Account-bound Tokens](https://eips.ethereum.org/EIPS/eip-4973)
 - [Web3.js Documentation](https://web3js.readthedocs.io/)
 
----
-
-**Made with ❤️ by Capstone Design Team 2 - Agora**
-
-````
