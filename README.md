@@ -17,7 +17,7 @@ cd blockchain_voting_system
 
 # 3. 네트워크 시작 + SBT 시스템 배포 (한 번에!)
 cd blockchain_contracts
-./setup_and_deploy.sh
+./scripts/setup_and_deploy.sh
 
 # 4. 프론트엔드 실행
 cd ../frontend
@@ -121,7 +121,7 @@ blockchain_voting_system/
 
 ```bash
 cd blockchain_contracts
-./setup_and_deploy.sh
+./scripts/setup_and_deploy.sh
 ```
 
 **자동 처리 내역:**
@@ -169,7 +169,7 @@ cp deploy.env.example deploy.env
 # deploy.env에서 투표 일정, 후보자 등 수정 가능
 
 # SBT 시스템 배포
-node deploy_sbt_system.js
+node scripts/deploy_sbt_system.js
 ```
 
 배포가 완료되면:
@@ -212,7 +212,7 @@ cp deploy.env.example deploy.env
 nano deploy.env  # 투표 일정, 후보자 수정
 
 # 2. 재배포
-./redeploy_sbt_system.sh
+./scripts/redeploy_sbt_system.sh
 ```
 
 **deploy.env 주요 설정:**
@@ -244,7 +244,7 @@ docker compose up -d
 
 # 4. SBT 시스템 재배포
 cd ../blockchain_contracts
-node deploy_sbt_system.js
+node scripts/deploy_sbt_system.js
 ```
 
 **이유:** 각 합의 알고리즘은 서로 다른 genesis 파일을 사용하므로 볼륨 삭제(`-v`)가 필수입니다.
@@ -255,7 +255,7 @@ CitizenSBT의 verifier를 변경하려면:
 
 ```bash
 cd blockchain_contracts
-node update_verifier.js --new-verifier <새_주소>
+node scripts/update_verifier.js --new-verifier <새_주소>
 ```
 
 ### 배포 정보 확인
@@ -276,9 +276,9 @@ cat blockchain_contracts/artifacts/sbt_deployment.json | grep -A 2 "CitizenSBT"
 - `blockchain_contracts/contracts/VotingRewardNFT.sol`: 보상 NFT
 
 ### 배포 & 자동화
-- `blockchain_contracts/deploy_sbt_system.js`: SBT 시스템 배포
-- `blockchain_contracts/setup_and_deploy.sh`: 통합 배포 자동화
-- `blockchain_contracts/redeploy_sbt_system.sh`: 재배포 스크립트
+- `blockchain_contracts/scripts/deploy_sbt_system.js`: SBT 시스템 배포
+- `blockchain_contracts/scripts/setup_and_deploy.sh`: 통합 배포 자동화
+- `blockchain_contracts/scripts/redeploy_sbt_system.sh`: 재배포 스크립트
 - `blockchain_contracts/deploy.env.example`: 배포 설정 템플릿
 
 ### 프론트엔드
@@ -287,8 +287,10 @@ cat blockchain_contracts/artifacts/sbt_deployment.json | grep -A 2 "CitizenSBT"
 - `frontend/src/lib/web3.ts`: Web3 연결 관리
 
 ### 유틸리티 (선택사항)
-- `blockchain_contracts/verify_sbt.js`: SBT 보유 확인
-- `blockchain_contracts/test_vote_with_sbt.js`: 투표 테스트
+- `blockchain_contracts/scripts/cast_vote.js`: CLI 투표 도구
+- `blockchain_contracts/scripts/check_vote.js`: 투표 상태 확인
+- `blockchain_contracts/scripts/diagnose.js`: 시스템 진단
+- `blockchain_contracts/tests/`: 테스트 스크립트
 - `blockchain_contracts/monitoring/`: 성능 벤치마크 도구
 
 ### 네트워크 재시작
@@ -309,7 +311,7 @@ docker compose logs -f [서비스명]
 cd network
 docker compose down -v  # 볼륨까지 삭제
 cd ../blockchain_contracts
-./setup_and_deploy.sh   # 자동으로 재배포 포함
+./scripts/setup_and_deploy.sh   # 자동으로 재배포 포함
 ```
 
 ## 🛠 문제 해결
@@ -355,7 +357,7 @@ curl -X POST http://localhost:10545 \
 - [ ] Node.js 설치: `node --version` (16+)
 - [ ] Python 설치: `python3 --version` (3.8+)
 - [ ] 저장소 클론: `git clone https://github.com/capstone-design2-agora/blockchain_voting_system.git`
-- [ ] 배포 스크립트 실행: `cd blockchain_contracts && ./setup_and_deploy.sh`
+- [ ] 배포 스크립트 실행: `cd blockchain_contracts && ./scripts/setup_and_deploy.sh`
 - [ ] 네트워크 상태 확인: `cd network && docker compose ps`
 - [ ] 컨트랙트 배포 확인: `cat blockchain_contracts/artifacts/sbt_deployment.json`
 - [ ] 프론트엔드 실행: `cd frontend && npm install && npm start`

@@ -12,7 +12,8 @@ echo ""
 
 # 현재 디렉토리 확인
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+BLOCKCHAIN_CONTRACTS_DIR="$(realpath "${SCRIPT_DIR}/..")"
+cd "$BLOCKCHAIN_CONTRACTS_DIR"
 
 # deploy.env 파일 로드
 if [ -f "deploy.env" ]; then
@@ -97,7 +98,7 @@ echo "  - VotingRewardNFT (보상 NFT)"
 echo "  - VotingWithSBT (투표 컨트랙트)"
 echo ""
 
-node deploy_sbt_system.js
+node "${SCRIPT_DIR}/deploy_sbt_system.js"
 
 if [ $? -eq 0 ]; then
     echo ""

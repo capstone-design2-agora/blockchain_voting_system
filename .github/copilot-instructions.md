@@ -11,11 +11,11 @@
 ## 핵심 실행 흐름 (개발자 워크플로우)
 
 ### 통합 배포 흐름 (권장)
-`./setup_and_deploy.sh`가 네트워크 시작, 컨트랙트 배포, 프론트엔드 환경 구성을 모두 처리합니다.
+`./scripts/setup_and_deploy.sh`가 네트워크 시작, 컨트랙트 배포, 프론트엔드 환경 구성을 모두 처리합니다.
 
 ```bash
 cd blockchain_contracts
-./setup_and_deploy.sh
+./scripts/setup_and_deploy.sh
 ```
 
 이 스크립트가 자동으로:
@@ -117,7 +117,7 @@ npm start  # localhost:3000 에서 실행, MetaMask 연결 후 투표 진행
 ```bash
 # 1. 네트워크 시작 + 컨트랙트 배포 + 환경 구성 (한 번에)
 cd blockchain_contracts
-./setup_and_deploy.sh
+./scripts/setup_and_deploy.sh
 
 # 2. 프론트엔드 실행 (다른 터미널에서)
 cd frontend
@@ -130,7 +130,7 @@ npm start  # localhost:3000 에서 실행
 cd blockchain_contracts
 cp deploy.env.example deploy.env
 # deploy.env 편집: PROPOSALS, BALLOT_TITLE, BALLOT_OPENS_AT 등
-./redeploy_sbt_system.sh  # 새 컨트랙트 배포 및 환경파일 갱신
+./scripts/redeploy_sbt_system.sh  # 새 컨트랙트 배포 및 환경파일 갱신
 ```
 
 ### 프로덕션 빌드
@@ -144,7 +144,7 @@ npx serve -s build  # 배포용 빌드 로컬 테스트
 
 - 프로젝트 루트 README: `/README.md` (큰 그림과 실험 재현 방법)
 - 프론트엔드 실행 가이드: `/frontend/RUN_GUIDE.md` 및 `/frontend/package.json`
-- 배포 자동화 / 배포 템플릿: `/blockchain_contracts/setup_and_deploy.sh` (초기 배포), `/blockchain_contracts/redeploy_sbt_system.sh` (재배포), `/blockchain_contracts/deploy_sbt_system.js`, `/blockchain_contracts/deploy.env.example`
+- 배포 자동화 / 배포 템플릿: `/blockchain_contracts/scripts/setup_and_deploy.sh` (초기 배포), `/blockchain_contracts/scripts/redeploy_sbt_system.sh` (재배포), `/blockchain_contracts/scripts/deploy_sbt_system.js`, `/blockchain_contracts/deploy.env.example`
 - 네트워크 실행: `/network/docker-compose.yml`
 - 스마트컨트랙트 소스: `/blockchain_contracts/contracts/` (CitizenSBT.sol, VotingWithSBT.sol, VotingRewardNFT.sol)
 - 산출물/ABI: `/blockchain_contracts/artifacts/sbt_deployment.json`, `/frontend/src/abi/`

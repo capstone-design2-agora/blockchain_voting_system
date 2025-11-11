@@ -4,16 +4,17 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(realpath "${SCRIPT_DIR}/..")"
+BLOCKCHAIN_CONTRACTS_DIR="$(realpath "${SCRIPT_DIR}/..")"
+PROJECT_ROOT="$(realpath "${BLOCKCHAIN_CONTRACTS_DIR}/..")"
 NETWORK_DIR="${PROJECT_ROOT}/network"
-ARTIFACTS_DIR="${SCRIPT_DIR}/artifacts"
+ARTIFACTS_DIR="${BLOCKCHAIN_CONTRACTS_DIR}/artifacts"
 FRONTEND_DIR="${PROJECT_ROOT}/frontend"
 FRONTEND_ABI_DIR="${FRONTEND_DIR}/src/abi"
 FRONTEND_ENV_EXAMPLE="${FRONTEND_DIR}/.env.example"
 FRONTEND_ENV_FILE="${FRONTEND_DIR}/.env"
 FRONTEND_ENV_LOCAL="${FRONTEND_DIR}/.env.local"
 # Optional deployment metadata overrides are read from deploy.env.
-DEPLOY_ENV_FILE="${SCRIPT_DIR}/deploy.env"
+DEPLOY_ENV_FILE="${BLOCKCHAIN_CONTRACTS_DIR}/deploy.env"
 DEPLOY_ENV_SOURCED="false"
 
 if [[ -f "${DEPLOY_ENV_FILE}" ]]; then
@@ -355,7 +356,7 @@ if [ "$SHOULD_DEPLOY" = true ]; then
     export BALLOT_OPENS_AT BALLOT_CLOSES_AT BALLOT_ANNOUNCES_AT BALLOT_EXPECTED_VOTERS
     export GOQUORUM_CONS_ALGO="${CONSENSUS}"
 
-    node deploy_sbt_system.js
+    node "${SCRIPT_DIR}/deploy_sbt_system.js"
     
     if [[ -f "${ARTIFACTS_DIR}/sbt_deployment.json" ]]; then
         CITIZEN_SBT_ADDRESS=$(node -p "require('${ARTIFACTS_DIR}/sbt_deployment.json').contracts.CitizenSBT.address")
