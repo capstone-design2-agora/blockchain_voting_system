@@ -164,7 +164,11 @@ async function main() {
     // VotingRewardNFT parameters
     const rewardName = process.env.REWARD_NFT_NAME || 'Voting Reward NFT';
     const rewardSymbol = process.env.REWARD_NFT_SYMBOL || 'VREWARD';
-    const mascotBaseURI = process.env.MASCOT_BASE_URI || 'https://example.com/mascots/';
+
+    // Mascot configuration
+    const mascotCID = process.env.MASCOT_CID || '';
+    const mascotGateway = 'https://gateway.pinata.cloud/ipfs/';
+    const mascotImageURI = mascotCID ? `${mascotGateway}${mascotCID}` : '';
 
     // VotingWithSBT parameters
     const proposalsEnv = process.env.PROPOSALS || 'Alice,Bob,Charlie';
@@ -260,13 +264,14 @@ async function main() {
     );
 
     // 2. Deploy VotingRewardNFT
+    // Note: baseTokenURI is not used since we set individual mascot URIs per ballot via setMascot()
     deployments.VotingRewardNFT = await deployContract(
         web3,
         deployer,
         'VotingRewardNFT',
         compiled.VotingRewardNFT.abi,
         compiled.VotingRewardNFT.bytecode,
-        [rewardName, rewardSymbol, mascotBaseURI]
+        [rewardName, rewardSymbol, '']  // Empty baseURI - we use setMascot() instead
     );
 
     // 3. Deploy VotingWithSBT
@@ -303,6 +308,24 @@ async function main() {
 
     console.log('  ✓ Authorization complete. Tx hash:', authTx.transactionHash);
 
+    // 5. Set mascot image for this ballot
+    if (mascotCID) {
+        console.log('\n> Setting mascot image for ballot...');
+        console.log(`  Ballot ID: ${ballotId}`);
+        console.log(`  Mascot CID: ${mascotCID}`);
+        console.log(`  Mascot URI: ${mascotImageURI}`);
+
+        const mascotTx = await rewardNFT.methods
+            .setMascot(ballotId, mascotImageURI)
+            .send({ from: deployer });
+
+        console.log('  ✓ Mascot set successfully. Tx hash:', mascotTx.transactionHash);
+    } else {
+        console.log('\n⚠ Warning: MASCOT_CID not set. NFTs will not have images.');
+        console.log('  Set MASCOT_CID in deploy.env to enable NFT images.');
+        console.log('  Example: MASCOT_CID="bafybeifp7rkwb6dokeufto54vt4w5hkvy7xni2savwph5k6gw5ldy3sukq"');
+    }
+
     // Save artifacts
     const artifactsDir = path.resolve(PROJECT_ROOT, 'artifacts');
     ensureDir(artifactsDir);
@@ -322,7 +345,9 @@ async function main() {
                 name: rewardName,
                 symbol: rewardSymbol,
                 address: deployments.VotingRewardNFT.address,
-                baseURI: mascotBaseURI,
+                mascotCID: mascotCID,
+                mascotGateway: mascotGateway,
+                mascotImageURI: mascotImageURI,
                 abi: compiled.VotingRewardNFT.abi,
                 transactionHash: deployments.VotingRewardNFT.transactionHash,
                 gasUsed: deployments.VotingRewardNFT.gasUsed
