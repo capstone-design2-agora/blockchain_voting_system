@@ -19,6 +19,7 @@
 **Dependencies**: None.
 
 ## Phase 1 – Data Layer & Security Hardening (Supabase)
+**Status**: ✅ Completed 2025-11-12 — Supabase migrations (`supabase/migrations/20251112_email_verification_phase1.sql`) applied to the cloud project, and security/hash strategy documented in `docs/email_verification_security.md`. Verified locally via `npx supabase db push`.
 **Tasks**
 1. Design and run SQL migrations for:
    - `email_verification_codes`
