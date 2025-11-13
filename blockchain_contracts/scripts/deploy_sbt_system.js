@@ -177,6 +177,33 @@ async function main() {
         .map((value) => value.trim())
         .filter(Boolean);
 
+    // Parse pledges from environment
+    const pledgesEnv = process.env.PLEDGES || '';
+    let proposalPledges = [];
+
+    if (pledgesEnv) {
+        // Format: "pledge1|pledge2|pledge3;pledge1|pledge2;pledge1|pledge2|pledge3"
+        // Each group (separated by ;) corresponds to a candidate
+        const pledgeGroups = pledgesEnv.split(';').map(g => g.trim());
+
+        if (pledgeGroups.length !== proposals.length) {
+            console.warn(`⚠ Warning: PLEDGES count (${pledgeGroups.length}) doesn't match PROPOSALS count (${proposals.length})`);
+            console.warn('  Using empty pledges for mismatched candidates');
+        }
+
+        proposalPledges = pledgeGroups.map(group =>
+            group.split('|').map(p => p.trim()).filter(Boolean)
+        );
+
+        // Fill missing pledge arrays with empty arrays
+        while (proposalPledges.length < proposals.length) {
+            proposalPledges.push([]);
+        }
+    } else {
+        // No pledges provided, use empty arrays
+        proposalPledges = proposals.map(() => []);
+    }
+
     const ballotId = process.env.BALLOT_ID || 'citizen-2025';
     const ballotTitle = process.env.BALLOT_TITLE || '제 25대 대통령 선거';
     const ballotDescription =
@@ -222,6 +249,10 @@ async function main() {
     console.log('Reward NFT Name:', rewardName);
     console.log('Ballot ID:', ballotId);
     console.log('Proposals:', proposals.join(', '));
+    console.log('Pledges per candidate:');
+    proposalPledges.forEach((pledges, idx) => {
+        console.log(`  ${proposals[idx]}: ${pledges.length > 0 ? pledges.join(' | ') : '(no pledges)'}`);
+    });
     console.log('═══════════════════════════════════════════════════════\n');
 
     // Compile contracts
@@ -285,6 +316,7 @@ async function main() {
             deployments.CitizenSBT.address,
             deployments.VotingRewardNFT.address,
             proposals,
+            proposalPledges,
             ballotId,
             ballotTitle,
             ballotDescription,
@@ -356,6 +388,7 @@ async function main() {
                 address: deployments.VotingWithSBT.address,
                 abi: compiled.VotingWithSBT.abi,
                 proposals,
+                pledges: proposalPledges,
                 ballot: {
                     id: ballotId,
                     title: ballotTitle,

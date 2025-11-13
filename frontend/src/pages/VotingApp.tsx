@@ -247,6 +247,14 @@ export function VotingApp() {
 
       const enriched: CandidateRecord[] = proposals.map((proposal: Proposal) => {
         const meta = metaMap.get(proposal.name);
+
+        // Use on-chain pledges if available, otherwise fallback to metaMap
+        const pledges = proposal.pledges && proposal.pledges.length > 0
+          ? proposal.pledges
+          : meta?.pledges && meta.pledges.length > 0
+            ? meta.pledges
+            : [meta?.description ?? "공약이 준비 중입니다."];
+
         return {
           id: proposal.id,
           name: proposal.name,
@@ -255,10 +263,7 @@ export function VotingApp() {
             meta?.description ?? "커뮤니티가 선택한 주요 후보입니다.",
           accent: meta?.accent ?? "linear-gradient(135deg, #1f2937, #3b4b80)",
           icon: meta?.icon ?? "🗳️",
-          pledges:
-            meta?.pledges && meta.pledges.length > 0
-              ? meta.pledges
-              : [meta?.description ?? "공약이 준비 중입니다."],
+          pledges,
         };
       });
 

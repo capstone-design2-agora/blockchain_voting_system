@@ -7,6 +7,7 @@ export type Proposal = {
   id: number;
   name: string;
   voteCount: number;
+  pledges?: string[];
 };
 
 const contractAddress = process.env.REACT_APP_VOTING_CONTRACT_ADDRESS;
@@ -60,16 +61,24 @@ export async function fetchProposals(): Promise<Proposal[]> {
 
   const proposals: Proposal[] = [];
   for (let id = 0; id < total; id += 1) {
-    const proposal = (await contract.methods.getProposal(id).call()) as {
-      name: string;
-      voteCount: string;
-    };
+    // Fetch basic info and pledges separately to avoid struct array issues
+    const basicInfo = await contract.methods.getProposalBasic(id).call() as any;
+    const pledges = await contract.methods.getProposalPledges(id).call() as string[];
+
+    console.log(`[fetchProposals] Proposal ${id}:`, {
+      name: basicInfo[0] || basicInfo.name,
+      voteCount: basicInfo[1] || basicInfo.voteCount,
+      pledges
+    });
+
     proposals.push({
       id,
-      name: proposal.name,
-      voteCount: Number.parseInt(proposal.voteCount ?? "0", 10) || 0,
+      name: basicInfo[0] || basicInfo.name || '',
+      voteCount: Number.parseInt(basicInfo[1] || basicInfo.voteCount || "0", 10) || 0,
+      pledges: Array.isArray(pledges) ? pledges : [],
     });
   }
+  console.log('[fetchProposals] All proposals:', proposals);
   return proposals;
 }
 

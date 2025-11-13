@@ -112,6 +112,27 @@ if [ $? -eq 0 ]; then
         echo "📄 배포 정보:"
         echo "  파일: artifacts/sbt_deployment.json"
         
+        # ABI 파일을 프론트엔드로 복사
+        echo ""
+        echo "📋 ABI 파일 동기화 중..."
+        FRONTEND_ABI_DIR="../frontend/src/abi"
+        mkdir -p "$FRONTEND_ABI_DIR"
+        
+        if [ -f "artifacts/CitizenSBT.abi.json" ]; then
+            cp artifacts/CitizenSBT.abi.json "$FRONTEND_ABI_DIR/CitizenSBT.json"
+            echo "  ✓ CitizenSBT.json"
+        fi
+        if [ -f "artifacts/VotingWithSBT.abi.json" ]; then
+            cp artifacts/VotingWithSBT.abi.json "$FRONTEND_ABI_DIR/Voting.json"
+            echo "  ✓ Voting.json"
+        fi
+        if [ -f "artifacts/VotingRewardNFT.abi.json" ]; then
+            cp artifacts/VotingRewardNFT.abi.json "$FRONTEND_ABI_DIR/VotingRewardNFT.json"
+            echo "  ✓ VotingRewardNFT.json"
+        fi
+        echo "✅ ABI 파일 동기화 완료"
+        echo ""
+        
         # 컨트랙트 주소 추출
         CITIZEN_SBT=$(node -pe "JSON.parse(require('fs').readFileSync('artifacts/sbt_deployment.json', 'utf8')).contracts.CitizenSBT.address")
         REWARD_NFT=$(node -pe "JSON.parse(require('fs').readFileSync('artifacts/sbt_deployment.json', 'utf8')).contracts.VotingRewardNFT.address")

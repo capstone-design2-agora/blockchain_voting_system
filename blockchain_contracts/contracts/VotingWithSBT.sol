@@ -12,6 +12,7 @@ contract VotingWithSBT is Ownable {
     struct Proposal {
         string name;
         uint256 voteCount;
+        string[] pledges;
     }
 
     struct BallotMetadata {
@@ -86,6 +87,7 @@ contract VotingWithSBT is Ownable {
     /// @param citizenSBT_ Address of the CitizenSBT contract
     /// @param rewardNFT_ Address of the VotingRewardNFT contract
     /// @param proposalNames Array of initial proposal names
+    /// @param proposalPledges Array of pledges for each proposal
     /// @param ballotId Unique identifier for this ballot
     /// @param title_ Title of the ballot
     /// @param description_ Description of the ballot
@@ -97,6 +99,7 @@ contract VotingWithSBT is Ownable {
         address citizenSBT_,
         address rewardNFT_,
         string[] memory proposalNames,
+        string[][] memory proposalPledges,
         string memory ballotId,
         string memory title_,
         string memory description_,
@@ -110,6 +113,9 @@ contract VotingWithSBT is Ownable {
         if (announcesAt != 0 && closesAt != 0 && announcesAt < closesAt) {
             revert InvalidSchedule();
         }
+        if (proposalNames.length != proposalPledges.length) {
+            revert("Proposal names and pledges length mismatch");
+        }
 
         citizenSBT = CitizenSBT(citizenSBT_);
         rewardNFT = VotingRewardNFT(rewardNFT_);
@@ -118,7 +124,8 @@ contract VotingWithSBT is Ownable {
         for (uint256 i = 0; i < proposalNames.length; i++) {
             _proposals.push(Proposal({
                 name: proposalNames[i],
-                voteCount: 0
+                voteCount: 0,
+                pledges: proposalPledges[i]
             }));
             emit ProposalAdded(i, proposalNames[i]);
         }
@@ -175,8 +182,9 @@ contract VotingWithSBT is Ownable {
     /// @notice Add a new proposal to the ballot
     /// @dev Only owner can add proposals
     /// @param name The name of the proposal
+    /// @param pledges Array of pledges for this proposal
     /// @return proposalId The ID of the new proposal
-    function addProposal(string calldata name) 
+    function addProposal(string calldata name, string[] calldata pledges) 
         external 
         onlyOwner 
         returns (uint256 proposalId) 
@@ -184,7 +192,8 @@ contract VotingWithSBT is Ownable {
         proposalId = _proposals.length;
         _proposals.push(Proposal({
             name: name,
-            voteCount: 0
+            voteCount: 0,
+            pledges: pledges
         }));
         emit ProposalAdded(proposalId, name);
     }
@@ -226,6 +235,31 @@ contract VotingWithSBT is Ownable {
     {
         if (proposalId >= _proposals.length) revert ProposalDoesNotExist();
         return _proposals[proposalId];
+    }
+
+    /// @notice Get proposal name and vote count
+    /// @param proposalId The proposal ID
+    /// @return name Proposal name
+    /// @return voteCount Number of votes
+    function getProposalBasic(uint256 proposalId)
+        external
+        view
+        returns (string memory name, uint256 voteCount)
+    {
+        if (proposalId >= _proposals.length) revert ProposalDoesNotExist();
+        return (_proposals[proposalId].name, _proposals[proposalId].voteCount);
+    }
+
+    /// @notice Get pledges for a proposal
+    /// @param proposalId The proposal ID
+    /// @return pledges Array of pledges
+    function getProposalPledges(uint256 proposalId)
+        external
+        view
+        returns (string[] memory pledges)
+    {
+        if (proposalId >= _proposals.length) revert ProposalDoesNotExist();
+        return _proposals[proposalId].pledges;
     }
 
     /// @notice Get all proposals

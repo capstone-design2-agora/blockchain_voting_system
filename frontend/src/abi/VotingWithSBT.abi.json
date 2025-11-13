@@ -17,6 +17,11 @@
         "type": "string[]"
       },
       {
+        "internalType": "string[][]",
+        "name": "proposalPledges",
+        "type": "string[][]"
+      },
+      {
         "internalType": "string",
         "name": "ballotId",
         "type": "string"
@@ -245,6 +250,11 @@
         "internalType": "string",
         "name": "name",
         "type": "string"
+      },
+      {
+        "internalType": "string[]",
+        "name": "pledges",
+        "type": "string[]"
       }
     ],
     "name": "addProposal",
@@ -257,7 +267,7 @@
     ],
     "stateMutability": "nonpayable",
     "type": "function",
-    "signature": "0x2fdae3c5"
+    "signature": "0x7d81c83a"
   },
   {
     "inputs": [],
@@ -362,6 +372,11 @@
             "internalType": "uint256",
             "name": "voteCount",
             "type": "uint256"
+          },
+          {
+            "internalType": "string[]",
+            "name": "pledges",
+            "type": "string[]"
           }
         ],
         "internalType": "struct VotingWithSBT.Proposal[]",
@@ -395,6 +410,11 @@
             "internalType": "uint256",
             "name": "voteCount",
             "type": "uint256"
+          },
+          {
+            "internalType": "string[]",
+            "name": "pledges",
+            "type": "string[]"
           }
         ],
         "internalType": "struct VotingWithSBT.Proposal",
@@ -406,6 +426,53 @@
     "type": "function",
     "constant": true,
     "signature": "0xc7f758a8"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "proposalId",
+        "type": "uint256"
+      }
+    ],
+    "name": "getProposalBasic",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "name",
+        "type": "string"
+      },
+      {
+        "internalType": "uint256",
+        "name": "voteCount",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "constant": true,
+    "signature": "0x9f83c4b2"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "proposalId",
+        "type": "uint256"
+      }
+    ],
+    "name": "getProposalPledges",
+    "outputs": [
+      {
+        "internalType": "string[]",
+        "name": "pledges",
+        "type": "string[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "constant": true,
+    "signature": "0x662ed72f"
   },
   {
     "inputs": [],
