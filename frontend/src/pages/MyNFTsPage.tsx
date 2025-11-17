@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router";
 import { getWeb3, onAccountsChanged } from "../lib/web3";
 import { getRewardNFTs } from "../lib/sbt";
+import useEmailVerificationStore from "../stores/emailVerificationStore";
 import "./MyNFTsPage.css";
 
 interface Badge {
@@ -15,10 +16,16 @@ interface Badge {
 
 export default function MyNFTsPage() {
     const navigate = useNavigate();
+    const resetVerificationFlow = useEmailVerificationStore((state) => state.reset);
     const [nfts, setNfts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [walletAddress, setWalletAddress] = useState<string | null>(null);
     const [selectedNFT, setSelectedNFT] = useState<any | null>(null);
+
+    const redirectToVerification = useCallback(() => {
+        resetVerificationFlow();
+        navigate("/email-verification");
+    }, [navigate, resetVerificationFlow]);
 
     useEffect(() => {
         const loadNFTs = async () => {
@@ -27,7 +34,7 @@ export default function MyNFTsPage() {
                 const accounts = await web3.eth.getAccounts();
 
                 if (accounts.length === 0) {
-                    navigate("/email-verification");
+                    redirectToVerification();
                     return;
                 }
 
@@ -47,7 +54,7 @@ export default function MyNFTsPage() {
         // 지갑 연결 상태 감지
         const unsubscribe = onAccountsChanged(async (accounts) => {
             if (accounts.length === 0) {
-                navigate("/email-verification");
+                redirectToVerification();
             } else {
                 // 지갑 변경 시 새 지갑의 NFT 로드
                 const newAddress = accounts[0];
@@ -66,7 +73,7 @@ export default function MyNFTsPage() {
         });
 
         return () => unsubscribe();
-    }, [navigate]);
+    }, [redirectToVerification]);
 
     const handleDisconnect = async () => {
         console.log("🔌 연결 해제 시작...");
@@ -112,13 +119,13 @@ export default function MyNFTsPage() {
 
             // Auth 페이지로 이동
             console.log("🏠 Auth 페이지로 이동");
-            navigate("/email-verification");
+            redirectToVerification();
         } catch (error) {
             console.error("❌ Disconnect error:", error);
             // 오류 발생 시에도 세션 정리 후 이동
             sessionStorage.clear();
             localStorage.removeItem("walletAddress");
-            navigate("/email-verification");
+            redirectToVerification();
         }
     };
 

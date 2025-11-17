@@ -19,6 +19,7 @@ import {
   onChainChanged,
 } from "../lib/web3";
 import { checkHasSBT } from "../lib/sbt";
+import useEmailVerificationStore from "../stores/emailVerificationStore";
 
 type CandidateRecord = {
   id: number;
@@ -121,6 +122,7 @@ const FALLBACK_BALLOTS: BallotMeta[] = [
 
 export function VotingApp() {
   const navigate = useNavigate();
+  const resetVerificationFlow = useEmailVerificationStore((state) => state.reset);
   const [candidates, setCandidates] = useState<CandidateRecord[]>([]);
   const [status, setStatus] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
@@ -157,6 +159,11 @@ export function VotingApp() {
       ),
     []
   );
+
+  const redirectToVerification = useCallback(() => {
+    resetVerificationFlow();
+    navigate("/email-verification");
+  }, [navigate, resetVerificationFlow]);
 
   const loadBallotMetadata = useCallback(async () => {
     console.log('[loadBallotMetadata] Starting...');
@@ -326,7 +333,7 @@ export function VotingApp() {
       setUserHasVoted(false);
       sessionStorage.clear();
       localStorage.removeItem("walletAddress");
-      navigate("/email-verification");
+      redirectToVerification();
     };
 
     if (!window.confirm("지갑 연결을 해제하시겠습니까?\n\nMetaMask에서 직접 연결을 해제하려면:\n1. MetaMask 확장 프로그램 클릭\n2. 연결된 사이트 관리\n3. 이 사이트 연결 해제")) {
@@ -348,7 +355,7 @@ export function VotingApp() {
     } finally {
       clearAndRedirect();
     }
-  }, [navigate]);
+  }, [redirectToVerification]);
 
   useEffect(() => {
     void loadBallotMetadata();
@@ -444,14 +451,13 @@ export function VotingApp() {
         const primaryAccount = accounts[0];
 
         if (!primaryAccount) {
-          navigate("/email-verification");
+          redirectToVerification();
           return;
         }
 
-        // Check if user has SBT
         const hasSBT = await checkHasSBT(primaryAccount);
         if (!hasSBT) {
-          navigate("/email-verification");
+          redirectToVerification();
           return;
         }
 
@@ -465,12 +471,12 @@ export function VotingApp() {
         }
       } catch (error) {
         console.warn("Account detection failed:", error);
-        navigate("/email-verification");
+        redirectToVerification();
       }
     }
 
     void detectUser();
-  }, [navigate]);
+  }, [redirectToVerification]);
 
   useEffect(() => {
     const unsubscribeAccounts = onAccountsChanged(async (accounts) => {
@@ -478,6 +484,7 @@ export function VotingApp() {
         setCurrentUser("익명 유권자");
         setUserHasVoted(false);
         setStatus("지갑 연결이 해제됐어요.");
+        redirectToVerification();
         return;
       }
 
@@ -513,7 +520,7 @@ export function VotingApp() {
       unsubscribeAccounts();
       unsubscribeChain();
     };
-  }, [expectedChainLabel, loadCandidates]);
+  }, [expectedChainLabel, loadCandidates, redirectToVerification]);
 
   useEffect(() => {
     if (!pledgeModal) {

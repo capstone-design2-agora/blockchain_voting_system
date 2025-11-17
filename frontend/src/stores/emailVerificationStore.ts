@@ -111,6 +111,7 @@ const useEmailVerificationStore = create<VerificationState>()(
       reset: () => set({
         step: 'IDLE',
         email: null,
+        walletAddress: null,
         signature: null,
         identityHash: null,
         nonce: null,
