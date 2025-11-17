@@ -32,6 +32,7 @@ function nonceToBytes32(nonce: string) {
 
 export default function MintingStep() {
     const {
+        email,
         step,
         walletAddress,
         signature,
@@ -42,6 +43,7 @@ export default function MintingStep() {
         setTxPending,
         setCompleted,
         setError,
+        reset,
         isSignatureExpired
     } = useEmailVerificationStore();
 
@@ -163,6 +165,27 @@ export default function MintingStep() {
         }
     };
 
+    const handleResetVerification = async () => {
+        if (!email || !walletAddress) {
+            setError('이메일 또는 지갑 정보를 확인할 수 없습니다.');
+            return;
+        }
+
+        const confirmed = window.confirm('인증 과정을 초기화하시겠습니까?\n\n이전에 진행된 인증 정보가 모두 삭제됩니다.');
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            await EmailVerificationAPI.resetVerification({ email, walletAddress });
+            mintTriggeredRef.current = false;
+            reset();
+            alert('인증 정보가 초기화되었습니다. 처음부터 다시 진행해주세요.');
+        } catch (err: any) {
+            setError(err.message || '인증 초기화에 실패했습니다.');
+        }
+    };
+
     return (
         <div className="minting-step">
             <div className="step-header">
@@ -185,6 +208,14 @@ export default function MintingStep() {
             <div className="gas-warning">
                 ⚠️ 트랜잭션 가스비가 발생할 수 있습니다.
             </div>
+
+            <button
+                type="button"
+                className="secondary-button reset-button"
+                onClick={handleResetVerification}
+            >
+                ♻️ 인증 과정 초기화
+            </button>
         </div>
     );
 }

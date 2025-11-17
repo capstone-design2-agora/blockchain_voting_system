@@ -17,7 +17,8 @@ export default function CodeVerificationStep() {
         isLoading,
         error,
         canResendCode,
-        isCodeExpired
+        isCodeExpired,
+        reset
     } = useEmailVerificationStore();
 
     const [code, setCode] = useState('');
@@ -97,6 +98,29 @@ export default function CodeVerificationStep() {
         }
     };
 
+    const handleResetVerification = async () => {
+        if (!email || !walletAddress) {
+            setError('이메일과 지갑 정보를 확인할 수 없습니다.');
+            return;
+        }
+
+        const confirmed = window.confirm('인증 과정을 초기화하시겠습니까?\n\n이전에 진행된 인증 정보가 모두 삭제됩니다.');
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            setLoading(true);
+            await EmailVerificationAPI.resetVerification({ email, walletAddress });
+            reset();
+            alert('인증 정보가 초기화되었습니다. 처음부터 다시 진행해주세요.');
+        } catch (err: any) {
+            setError(err.message || '인증 초기화에 실패했습니다.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <div className="code-verification-step">
             <div className="step-header">
@@ -148,6 +172,14 @@ export default function CodeVerificationStep() {
                     {!canResendCode() && resendCooldownUntil
                         ? `재전송 (${Math.ceil((resendCooldownUntil.getTime() - Date.now()) / 1000)}초 후)`
                         : '🔄 코드 재전송'}
+                </button>
+                <button
+                    className="secondary-button reset-button"
+                    onClick={handleResetVerification}
+                    disabled={isLoading}
+                    type="button"
+                >
+                    ♻️ 인증 과정 초기화
                 </button>
             </div>
         </div>
