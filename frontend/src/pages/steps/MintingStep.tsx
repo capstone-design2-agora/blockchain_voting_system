@@ -1,10 +1,34 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
 import useEmailVerificationStore from '../../stores/emailVerificationStore';
 import { EmailVerificationAPI } from '../../lib/emailVerificationApi';
-import CitizenSBTAbi from '../../abi/CitizenSBT.json';
+import CitizenSBTAbi from '../../abi/CitizenSBT.abi.json';
 
 const CITIZEN_SBT_CONTRACT = process.env.REACT_APP_CITIZEN_SBT_ADDRESS!;
+
+function nonceToBytes32(nonce: string) {
+    if (!nonce) {
+        throw new Error('Nonce is required');
+    }
+
+    const normalized = nonce.replace(/-/g, '').toLowerCase();
+
+    if (/^[0-9a-f]+$/.test(normalized)) {
+        const bytes = `0x${normalized}`;
+        const byteLength = normalized.length / 2;
+
+        if (byteLength === 32) {
+            return bytes;
+        }
+
+        if (byteLength === 16) {
+            return ethers.zeroPadValue(bytes, 32);
+        }
+    }
+
+    // Fall back to hashing unexpected formats to stay in sync with the server signer logic
+    return ethers.sha256(ethers.toUtf8Bytes(nonce));
+}
 
 export default function MintingStep() {
     const {
@@ -13,6 +37,7 @@ export default function MintingStep() {
         signature,
         identityHash,
         nonce,
+        signatureExpiresAt,
         txHash,
         setTxPending,
         setCompleted,
@@ -20,10 +45,20 @@ export default function MintingStep() {
         isSignatureExpired
     } = useEmailVerificationStore();
 
+    const mintTriggeredRef = useRef(false);
+
     useEffect(() => {
         if (step === 'VERIFIED' && !txHash) {
+            if (mintTriggeredRef.current) {
+                return;
+            }
+            mintTriggeredRef.current = true;
             mintSBT();
-        } else if (step === 'TX_PENDING' && txHash) {
+        } else {
+            mintTriggeredRef.current = false;
+        }
+
+        if (step === 'TX_PENDING' && txHash) {
             waitForCompletion();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -40,6 +75,18 @@ export default function MintingStep() {
             return;
         }
 
+        if (!signatureExpiresAt) {
+            setError('서명 만료 정보를 확인하지 못했습니다. 다시 시도해주세요.');
+            return;
+        }
+
+        const expirationMs = new Date(signatureExpiresAt).getTime();
+        if (Number.isNaN(expirationMs)) {
+            setError('서명 만료 시간이 유효하지 않습니다.');
+            return;
+        }
+        const signatureExpiration = Math.floor(expirationMs / 1000); // 컨트랙트는 초 단위 Unix 타임을 기대
+
         try {
             const provider = new ethers.BrowserProvider((window as any).ethereum);
             const signer = await provider.getSigner();
@@ -50,19 +97,19 @@ export default function MintingStep() {
                 signer
             );
 
-            // nonceToBytes32 변환
-            const nonceBytes32 = ethers.zeroPadValue(
-                ethers.toUtf8Bytes(nonce),
-                32
-            );
+            // nonceToBytes32 변환 (UUID -> bytes32) 서버 서명 로직과 동일하게 처리
+            const nonceBytes32 = nonceToBytes32(nonce);
 
             console.log('Minting with:', {
+                walletAddress,
                 identityHash,
                 nonce: nonceBytes32,
+                signatureExpiration,
                 signature
             });
 
             const tx = await contract.mintWithSignature(
+                walletAddress,
                 identityHash,
                 nonceBytes32,
                 signature
