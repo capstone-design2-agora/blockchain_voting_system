@@ -870,17 +870,6 @@ export function VotingApp() {
                 <div className="nav-card__title">지갑 주소</div>
                 <div className="nav-card__content">{currentUser}</div>
               </div>
-              <div className="nav-card">
-                <div className="nav-card__title">참여 한 투표</div>
-                <div className="nav-card__content">
-                  {
-                    ballots.filter(
-                      (b) => deriveBallotStatus(b) === "진행 중"
-                    ).length
-                  }
-                  건
-                </div>
-              </div>
               <button
                 type="button"
                 className="wallet-button wallet-button--nft"
