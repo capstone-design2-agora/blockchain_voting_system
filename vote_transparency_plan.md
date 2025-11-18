@@ -61,3 +61,5 @@
 - ✅ Workstream 1: Voting state now persists `lastReceipt`, `lastCandidateId`, and related metadata in `sessionStorage`, and the normalized payload matches the expected `{ statusLabel, displayHash, blockNumber, gasUsed, effectiveGasPrice, confirmations }` shape. Successful votes trigger user banners and optimistic tally refreshes.
 - ✅ Workstream 2: “내 투표 확인하기” 모달이 구현되어 트랜잭션 해시 복사, 블록 상세, 가스 요약, RPC 검증 스니펫, QR 코드까지 제공하며 접근성 가드(포커스 트랩, ESC 닫기, 복사 피드백)도 갖췄습니다.
 - ✅ Workstream 3 (partial): 실제로 투표한 후보 카드만 CTA가 “내 투표 확인하기”로 전환되고 하이라이트/설명 문구가 적용됩니다. 다른 후보들은 “이미 투표 완료”로 비활성화되며 추가 상태 배너 업데이트는 추후 진행 예정입니다.
+- ✅ Workstream 4: 최근 블록 체인 뷰어를 추가해 15초 간격 폴링, 가시성 기반 일시중지, 샘플 체인/에러 메시지, 내 투표 블록 강조, 수동 새로고침까지 지원합니다.
+- ✅ Workstream 5: 세션 상태/버전 관리를 유지하면서 데모 모드 영수증 시뮬레이션, RPC/체인 에러 코드 표시, RPC 장애 시 CTA/체인 안내, 지갑 미연결 시 정보 배너 등을 적용했습니다.

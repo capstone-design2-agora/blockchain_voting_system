@@ -111,12 +111,57 @@ type BlockDetails = {
   transactionCount: number | null;
 };
 
+type BlockPreview = {
+  blockNumber: number;
+  hash: string;
+  parentHash: string;
+  timestampLabel: string;
+  transactionCount: number | null;
+  isVoteBlock: boolean;
+};
+
 const LAST_VOTE_STORAGE_KEY = "agora:lastVote:v1";
 const LAST_VOTE_STORAGE_VERSION = 1;
 const OPTIMISTIC_REFRESH_DELAY_MS = 2500;
 const EXPLORER_TEMPLATE = process.env.REACT_APP_EXPLORER_TX_TEMPLATE ?? "";
 const RPC_VERIFICATION_ENDPOINT =
   process.env.REACT_APP_PUBLIC_RPC_URL ?? "https://<rpc-endpoint>";
+const RECENT_BLOCK_COUNT = 4;
+const BLOCK_POLL_INTERVAL_MS = 15000;
+const FALLBACK_CHAIN_PREVIEW: BlockPreview[] = [
+  {
+    blockNumber: 1024,
+    hash: "0xabc1…def1",
+    parentHash: "0xparent1",
+    timestampLabel: "샘플 데이터",
+    transactionCount: 12,
+    isVoteBlock: false,
+  },
+  {
+    blockNumber: 1025,
+    hash: "0xabc2…def2",
+    parentHash: "0xparent2",
+    timestampLabel: "샘플 데이터",
+    transactionCount: 15,
+    isVoteBlock: false,
+  },
+  {
+    blockNumber: 1026,
+    hash: "0xabc3…def3",
+    parentHash: "0xparent3",
+    timestampLabel: "샘플 데이터",
+    transactionCount: 9,
+    isVoteBlock: false,
+  },
+  {
+    blockNumber: 1027,
+    hash: "0xabc4…def4",
+    parentHash: "0xparent4",
+    timestampLabel: "샘플 데이터",
+    transactionCount: 20,
+    isVoteBlock: false,
+  },
+];
 
 const FALLBACK_BALLOTS: BallotMeta[] = [
   {
@@ -189,12 +234,20 @@ export function VotingApp() {
   const [blockLoading, setBlockLoading] = useState<boolean>(false);
   const [blockError, setBlockError] = useState<string | null>(null);
   const [copyFeedback, setCopyFeedback] = useState<string>("");
+  const [recentBlocks, setRecentBlocks] = useState<BlockPreview[]>(() =>
+    FALLBACK_CHAIN_PREVIEW.map((block) => ({ ...block }))
+  );
+  const [blockFeedError, setBlockFeedError] = useState<string | null>(null);
+  const [blockFeedLoading, setBlockFeedLoading] = useState<boolean>(false);
+  const [blockPollingActive, setBlockPollingActive] = useState<boolean>(true);
+  const [rpcUnavailable, setRpcUnavailable] = useState<boolean>(false);
   const modalRef = useRef<HTMLDivElement | null>(null);
   const expectedChainLabel = useMemo(() => getExpectedChainLabel(), []);
   const activeStatus = deriveBallotStatus(activeBallot);
   const resultsVisible = activeStatus === "마감";  // 결과 발표 시간이 지남
   const countingInProgress = activeStatus === "개표 중";  // 투표 마감 후 결과 발표 전
   const revealResults = resultsVisible || demoMode;
+  const walletConnected = currentUser !== "익명 유권자";
 
   const metaMap = useMemo(
     () =>
@@ -220,8 +273,14 @@ export function VotingApp() {
       : `${EXPLORER_TEMPLATE}${lastReceipt.transactionHash}`;
   }, [lastReceipt]);
   const canOpenReceiptModal = useMemo(
-    () => Boolean(lastReceipt && userHasVoted && !demoMode),
-    [demoMode, lastReceipt, userHasVoted]
+    () =>
+      Boolean(
+        lastReceipt &&
+        userHasVoted &&
+        !rpcUnavailable &&
+        (walletConnected || demoMode)
+      ),
+    [demoMode, lastReceipt, rpcUnavailable, userHasVoted, walletConnected]
   );
   const receiptCostSummary = useMemo(() => {
     if (!lastReceipt) {
@@ -343,11 +402,64 @@ export function VotingApp() {
       });
     } catch (error) {
       console.error("Failed to fetch block info", error);
-      setBlockError("RPC에서 블록 정보를 불러오지 못했어요. 다시 시도해 주세요.");
+      setBlockError(statusWithCode("RPC_TIMEOUT", "RPC에서 블록 정보를 불러오지 못했어요. 다시 시도해 주세요."));
     } finally {
       setBlockLoading(false);
     }
   }, [demoMode, lastReceipt?.blockNumber]);
+
+  const fetchRecentBlockChain = useCallback(async () => {
+    if (!walletConnected) {
+      return;
+    }
+    if (demoMode) {
+      setRecentBlocks(FALLBACK_CHAIN_PREVIEW.map((block) => ({ ...block })));
+      setBlockFeedError("데모 모드 – 샘플 체인을 표시합니다.");
+      setRpcUnavailable(false);
+      return;
+    }
+
+    try {
+      setBlockFeedLoading(true);
+      setBlockFeedError(null);
+      const web3Instance = getWeb3();
+      const latestRaw = await web3Instance.eth.getBlockNumber();
+      const latest = toNumberOrNull(latestRaw);
+      if (latest == null) {
+        throw new Error("Unable to determine latest block number");
+      }
+      const targets: number[] = [];
+      for (let offset = RECENT_BLOCK_COUNT - 1; offset >= 0; offset -= 1) {
+        const candidate = latest - offset;
+        if (candidate >= 0) {
+          targets.push(candidate);
+        }
+      }
+      const blocks = await Promise.all(
+        targets.map((target) => web3Instance.eth.getBlock(target, false))
+      );
+      const normalized = blocks
+        .map((block, index) =>
+          normalizeBlockPreview(block, targets[index], lastReceipt?.blockNumber)
+        )
+        .filter((preview): preview is BlockPreview => Boolean(preview));
+      if (normalized.length === 0) {
+        setRecentBlocks(FALLBACK_CHAIN_PREVIEW.map((block) => ({ ...block })));
+        setBlockFeedError("블록 데이터를 받을 수 없어 샘플 체인을 표시합니다.");
+        setRpcUnavailable(true);
+        return;
+      }
+      setRecentBlocks(normalized);
+      setRpcUnavailable(false);
+    } catch (error) {
+      console.error("Failed to fetch recent blocks", error);
+      setRecentBlocks(FALLBACK_CHAIN_PREVIEW.map((block) => ({ ...block })));
+      setBlockFeedError(statusWithCode("RPC_TIMEOUT", "RPC 연결 오류 – 샘플 체인을 표시합니다."));
+      setRpcUnavailable(true);
+    } finally {
+      setBlockFeedLoading(false);
+    }
+  }, [demoMode, lastReceipt?.blockNumber, walletConnected]);
 
   const redirectToVerification = useCallback(() => {
     resetVerificationFlow();
@@ -510,8 +622,11 @@ export function VotingApp() {
         return;
       }
       setStatus(
-        error?.message ??
-        `지갑 연결에 실패했어요. ${expectedChainLabel} 체인을 사용 중인지 확인해 주세요.`
+        statusWithCode(
+          "RPC_TIMEOUT",
+          error?.message ??
+            `지갑 연결에 실패했어요. ${expectedChainLabel} 체인을 사용 중인지 확인해 주세요.`
+        )
       );
     }
   }, [expectedChainLabel, loadCandidates]);
@@ -565,6 +680,15 @@ export function VotingApp() {
     const id = window.setTimeout(() => setCopyFeedback(""), 2500);
     return () => window.clearTimeout(id);
   }, [copyFeedback]);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      setBlockPollingActive(document.visibilityState !== "hidden");
+    };
+    handleVisibility();
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, []);
 
   useEffect(() => {
     if (!receiptModalOpen) {
@@ -632,6 +756,25 @@ export function VotingApp() {
     void fetchBlockDetails();
   }, [fetchBlockDetails, receiptModalOpen]);
 
+  useEffect(() => {
+    if (!blockPollingActive || !walletConnected) {
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      if (cancelled) {
+        return;
+      }
+      await fetchRecentBlockChain();
+    };
+    void load();
+    const id = window.setInterval(load, BLOCK_POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [blockPollingActive, fetchRecentBlockChain, walletConnected]);
+
   const handleVote = async (candidate: CandidateRecord): Promise<void> => {
     if (demoMode) {
       setCandidates((previous) =>
@@ -641,7 +784,18 @@ export function VotingApp() {
             : entry
         )
       );
-      setStatus("데모 모드에서 투표를 반영했어요. 실제 네트워크가 연결되면 서명이 필요합니다.");
+      const simulatedReceipt = createDemoReceipt(candidate.id);
+      setLastReceipt(simulatedReceipt);
+      setLastCandidateId(candidate.id);
+      setLastCandidateName(candidate.name);
+      persistLastVoteSnapshot({
+        version: LAST_VOTE_STORAGE_VERSION,
+        candidateId: candidate.id,
+        candidateName: candidate.name,
+        receipt: simulatedReceipt,
+      });
+      setUserHasVoted(true);
+      setStatus("데모 모드에서 영수증을 생성했어요. '내 투표 확인하기' 버튼으로 UI를 미리 볼 수 있습니다.");
       return;
     }
 
@@ -688,12 +842,15 @@ export function VotingApp() {
     } catch (error: any) {
       console.error(error);
       if (error?.code === 4001) {
-        setStatus("서명 요청이 지갑에서 거절됐어요. 서명을 승인해야 투표가 완료됩니다.");
+        setStatus(statusWithCode("TX_REJECTED", "서명 요청이 지갑에서 거절됐어요. 서명을 승인해야 투표가 완료됩니다."));
         return;
       }
       setStatus(
-        error?.message ??
-        "투표에 실패했어요. 지갑 연결과 네트워크를 다시 확인해 주세요."
+        statusWithCode(
+          "RPC_TIMEOUT",
+          error?.message ??
+            "투표에 실패했어요. 지갑 연결과 네트워크를 다시 확인해 주세요."
+        )
       );
     }
   };
@@ -797,7 +954,10 @@ export function VotingApp() {
     const unsubscribeChain = onChainChanged(async (chainId) => {
       if (!isExpectedChain(chainId)) {
         setStatus(
-          `지갑이 ${expectedChainLabel} 이외의 체인에 연결됐어요. MetaMask에서 네트워크를 전환해 주세요.`
+          statusWithCode(
+            "UNEXPECTED_CHAIN",
+            `지갑이 ${expectedChainLabel} 이외의 체인에 연결됐어요. MetaMask에서 네트워크를 전환해 주세요.`
+          )
         );
         setDemoMode(true);
         return;
@@ -825,8 +985,6 @@ export function VotingApp() {
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [pledgeModal]);
-
-  const walletConnected = currentUser !== "익명 유권자";
 
   return (
     <div className="voting-app-container">
@@ -1037,6 +1195,87 @@ export function VotingApp() {
             );
           })}
         </div>
+
+        <section className="block-visual">
+          <div className="block-visual__header">
+            <div>
+              <h3>최근 블록 체인</h3>
+              <p className="block-visual__status">
+                {blockPollingActive
+                  ? "15초 간격으로 자동 새로고침"
+                  : "탭이 비활성화되어 업데이트 일시 중지"}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="block-visual__refresh"
+              onClick={() => void fetchRecentBlockChain()}
+              disabled={blockFeedLoading || !walletConnected}
+            >
+              {blockFeedLoading ? "불러오는 중…" : "지금 새로고침"}
+            </button>
+          </div>
+
+          {!walletConnected ? (
+            <div className="block-visual__placeholder">
+              <p>지갑을 연결하면 최신 블록 체인 데이터를 확인할 수 있어요.</p>
+              <p className="block-visual__hint">연결이 없을 때는 실제 블록 데이터를 표시하지 않습니다.</p>
+            </div>
+          ) : (
+            <>
+              {blockFeedError && (
+                <div className="block-visual__error">
+                  <p>{blockFeedError}</p>
+                </div>
+              )}
+              {rpcUnavailable && (
+                <p className="block-visual__status block-visual__status--warn">
+                  RPC 연결 문제로 샘플 체인을 표시합니다.
+                </p>
+              )}
+              <div className={`block-chain ${rpcUnavailable ? "block-chain--muted" : ""}`}>
+                {recentBlocks.map((block, index) => (
+                  <div key={block.blockNumber} className="block-chain__item">
+                    <article
+                      className={`block-card ${block.isVoteBlock ? "block-card--vote" : ""}`}
+                    >
+                      <header>
+                        <span className="block-card__label">Block #{block.blockNumber}</span>
+                        {block.isVoteBlock && <span className="block-card__badge">내 투표</span>}
+                      </header>
+                      <dl>
+                        <div>
+                          <dt>해시</dt>
+                          <dd>{block.hash}</dd>
+                        </div>
+                        <div>
+                          <dt>Parent</dt>
+                          <dd>{block.parentHash}</dd>
+                        </div>
+                        <div>
+                          <dt>타임스탬프</dt>
+                          <dd>{block.timestampLabel}</dd>
+                        </div>
+                        <div>
+                          <dt>Tx Count</dt>
+                          <dd>{block.transactionCount ?? "-"}</dd>
+                        </div>
+                      </dl>
+                    </article>
+                    {index < recentBlocks.length - 1 && (
+                      <span className="block-chain__arrow" aria-hidden="true">
+                        →
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <p className="block-visual__caption">
+                각 블록은 이전 블록의 해시를 포함하여 조작 시 전체 체인을 수정해야 합니다.
+              </p>
+            </>
+          )}
+        </section>
 
         {lastReceipt && receiptModalOpen && (
           <div
@@ -1374,6 +1613,44 @@ function formatHashForDisplay(hash: string): string {
   return `${hash.slice(0, 10)}…${hash.slice(-6)}`;
 }
 
+function createDemoReceipt(seed: number): NormalizedReceipt {
+  const baseBlock = 15000 + seed;
+  const txHash = `0xdemo${seed.toString(16).padStart(2, "0")}000000000000000000000000000000000000000000000000000000000000`;
+  const gasUsed = (21000 + seed * 10).toString();
+  const gasPrice = (2_000_000_000 + seed * 1_000_000).toString();
+  return {
+    statusLabel: "성공 (Demo)",
+    displayHash: formatHashForDisplay(txHash),
+    transactionHash: txHash,
+    blockNumber: baseBlock,
+    gasUsed,
+    effectiveGasPrice: gasPrice,
+    confirmations: 0,
+  };
+}
+
+function normalizeBlockPreview(block: any, fallbackNumber: number, voteBlockNumber: number | null | undefined): BlockPreview | null {
+  if (!block) {
+    return null;
+  }
+  const blockNumber = toNumberOrNull(block.number) ?? fallbackNumber;
+  const hash = formatHashForDisplay(toHashString(block.hash));
+  const parentHash = formatHashForDisplay(toHashString(block.parentHash));
+  const timestampLabel = formatBlockTimestamp(block.timestamp);
+  const transactionCount = Array.isArray(block.transactions)
+    ? block.transactions.length
+    : toNumberOrNull((block as any)?.transactions?.length ?? null);
+  return {
+    blockNumber,
+    hash,
+    parentHash,
+    timestampLabel,
+    transactionCount,
+    isVoteBlock:
+      voteBlockNumber != null && blockNumber === voteBlockNumber,
+  };
+}
+
 function formatBlockTimestamp(value: unknown): string {
   const parsed = toNumberOrNull(value);
   if (parsed == null) {
@@ -1392,6 +1669,10 @@ function formatBlockTimestamp(value: unknown): string {
     minute: "2-digit",
     second: "2-digit",
   });
+}
+
+function statusWithCode(code: "RPC_TIMEOUT" | "UNEXPECTED_CHAIN" | "TX_REJECTED", message: string): string {
+  return `[${code}] ${message}`;
 }
 
 function formatBlockParam(blockNumber: number | null | undefined): string {
