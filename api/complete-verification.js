@@ -63,6 +63,8 @@ export default async function handler(req, res) {
       return res.status(200).json({ status: row.status });
     }
 
+    console.log("[complete-verification] expecting target", env.citizenSbtContractAddress);
+
     const receipt = await provider.getTransactionReceipt(txHash);
     if (!receipt) {
       throw new ValidationError("Transaction receipt not available yet");
@@ -77,6 +79,11 @@ export default async function handler(req, res) {
     }
 
     if (receipt.to?.toLowerCase() !== env.citizenSbtContractAddress.toLowerCase()) {
+      console.warn("[complete-verification] target mismatch", {
+        expected: env.citizenSbtContractAddress,
+        actual: receipt.to,
+        txHash
+      });
       throw new ValidationError("Transaction target mismatch");
     }
 
