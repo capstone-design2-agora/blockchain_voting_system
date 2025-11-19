@@ -13,7 +13,8 @@ FRONTEND_ABI_DIR="${FRONTEND_DIR}/src/abi"
 FRONTEND_ENV_EXAMPLE="${FRONTEND_DIR}/.env.example"
 FRONTEND_ENV_LOCAL="${FRONTEND_DIR}/.env.local"
 # Optional deployment metadata overrides are read from deploy.env.
-DEPLOY_ENV_FILE="${BLOCKCHAIN_CONTRACTS_DIR}/deploy.env"
+DEFAULT_DEPLOY_ENV_FILE="${BLOCKCHAIN_CONTRACTS_DIR}/deploy.env"
+DEPLOY_ENV_FILE="${DEPLOY_ENV_FILE:-${DEFAULT_DEPLOY_ENV_FILE}}"
 DEPLOY_ENV_SOURCED="false"
 
 if [[ -f "${DEPLOY_ENV_FILE}" ]]; then
@@ -81,6 +82,18 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --with-ngrok)
             WITH_NGROK=true
+            shift
+            ;;
+        --env-file)
+            if [[ -z "${2:-}" ]]; then
+                echo -e "${RED}✗ --env-file requires a path${NC}"
+                exit 1
+            fi
+            DEPLOY_ENV_FILE="$2"
+            shift 2
+            ;;
+        --env-file=*)
+            DEPLOY_ENV_FILE="${1#*=}"
             shift
             ;;
         *)
