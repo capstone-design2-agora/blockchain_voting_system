@@ -2,6 +2,7 @@ import React, { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import "./AdminDeployPage.css";
 
 type ProposalEntry = {
+  id: string;
   name: string;
   pledgesRaw: string;
 };
@@ -49,7 +50,13 @@ type DeploymentResult = {
   error?: string | null;
 };
 
-const defaultFormState: FormState = {
+const createProposalEntry = (): ProposalEntry => ({
+  id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+  name: "",
+  pledgesRaw: ""
+});
+
+const createDefaultFormState = (): FormState => ({
   ballotId: "",
   title: "",
   description: "",
@@ -61,15 +68,15 @@ const defaultFormState: FormState = {
   },
   mascotCid: "",
   verifierAddress: "",
-  proposals: [{ name: "", pledgesRaw: "" }]
-};
+  proposals: [createProposalEntry()]
+});
 
 export default function AdminDeployPage() {
   const requiredToken = process.env.REACT_APP_ADMIN_TOKEN;
   const [tokenInput, setTokenInput] = useState("");
   const [tokenValue, setTokenValue] = useState("");
   const [tokenMessage, setTokenMessage] = useState<string | null>(null);
-  const [formState, setFormState] = useState<FormState>(defaultFormState);
+  const [formState, setFormState] = useState<FormState>(createDefaultFormState());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [statusSnapshot, setStatusSnapshot] = useState<DeploymentStatus | null>(null);
@@ -192,7 +199,7 @@ export default function AdminDeployPage() {
   const addProposal = () => {
     setFormState((prev) => ({
       ...prev,
-      proposals: [...prev.proposals, { name: "", pledgesRaw: "" }]
+      proposals: [...prev.proposals, createProposalEntry()]
     }));
   };
 
@@ -359,12 +366,13 @@ export default function AdminDeployPage() {
       const payload = await response.json();
       if (payload?.config) {
         const config = payload.config;
-        const proposals = Array.isArray(config.proposals)
+        const proposals = Array.isArray(config.proposals) && config.proposals.length > 0
           ? config.proposals.map((proposal: any) => ({
+              ...createProposalEntry(),
               name: proposal.name || "",
               pledgesRaw: Array.isArray(proposal.pledges) ? proposal.pledges.join("|") : ""
             }))
-          : [{ name: "", pledgesRaw: "" }];
+          : [createProposalEntry()];
 
         setFormState({
           ballotId: config.ballotId || "",
@@ -545,8 +553,8 @@ export default function AdminDeployPage() {
             <p>Enter candidate names and pipe-separated pledge groups that match the smart contract template.</p>
           </div>
           <div className="proposal-list">
-            {formState.proposals.map((proposal, index) => (
-              <div key={`${proposal.name}-${index}`} className="proposal-row">
+          {formState.proposals.map((proposal, index) => (
+            <div key={proposal.id} className="proposal-row">
                 <div className="proposal-inputs">
                   <label>
                     Candidate name
@@ -630,7 +638,7 @@ export default function AdminDeployPage() {
           <button type="submit" disabled={isSubmitting || !isAuthorized}>
             {isSubmitting ? "Starting deployment…" : "Submit deployment"}
           </button>
-          <button type="button" className="secondary" onClick={() => setFormState(defaultFormState)}>
+          <button type="button" className="secondary" onClick={() => setFormState(createDefaultFormState())}>
             Reset form
           </button>
         </div>
