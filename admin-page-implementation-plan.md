@@ -10,6 +10,12 @@
 - Votes happen sequentially, so running one deployment at a time is acceptable. Concurrency limits can therefore be enforced in-process.
 - Admin UI runs inside the existing frontend codebase (`frontend/`) and can reuse its tooling (React + Vite/CRA).
 
+## Progress
+- Phase 0 ✅: architecture doc updated, shared `BallotConfig` schema created, and `/api/internal-deploy` stub with token guard landed along with validator helpers.
+- Phase 1 ✅: `deploy.templates.env` plus template renderer/helper, `setup_and_deploy.sh` `DEPLOY_ENV_FILE` override, and latest-config persistence helper all implemented and committed.
+- Phase 2 ✅: backend runner, stricter validation, SSE log stream, and history persistence now power `/internal-deploy`.
+- Phase 3 ✅: `/admin/deploy` admin UI now guards access via `REACT_APP_ADMIN_TOKEN`, composes ballot forms, preloads the last config, and subscribes to `/internal-deploy/logs` for real-time feedback.
+
 ## Phase 0 – Foundations
 1. **Config inventory**: enumerate which keys remain in host env vars vs. which become "ballot config" inputs. Update `docs/ARCHITECTURE.md` accordingly.
 2. **Schema stub**: define a TypeScript interface (e.g., `BallotConfig`) describing UI-managed fields. Keep it shared between frontend & backend via a small `@/types` module.

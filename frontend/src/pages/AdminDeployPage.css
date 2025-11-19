@@ -1,0 +1,356 @@
+.admin-deploy-page {
+  padding: 2.5rem;
+  max-width: 1100px;
+  margin: 0 auto 4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.admin-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.admin-header h1 {
+  margin: 0;
+  font-size: 2rem;
+}
+
+.admin-deploy-form,
+.admin-token-panel,
+.admin-section {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 18px;
+  padding: 1.5rem;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.08);
+}
+
+.token-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.token-input-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.token-input-row input {
+  flex: 1;
+}
+
+.token-input-row button {
+  background: #4338ca;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 0.45rem 1.1rem;
+  cursor: pointer;
+}
+
+.token-message {
+  color: #475569;
+}
+
+.token-tip {
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.token-status {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.token-status-ok {
+  color: #15803d;
+}
+
+.token-status-warn {
+  color: #b45309;
+}
+
+.admin-section + .admin-section {
+  margin-top: 0.5rem;
+}
+
+.section-header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.section-header p {
+  margin: 0.4rem 0 0;
+  color: #475569;
+  font-size: 0.9rem;
+}
+
+.admin-field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.admin-field-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+}
+
+.admin-field-grid input,
+.admin-field-grid textarea {
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: 10px;
+  padding: 0.4rem 0.8rem;
+  font-size: 1rem;
+  background: #fafafa;
+}
+
+.admin-field-grid small {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.proposal-list {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.proposal-row {
+  display: flex;
+  gap: 1rem;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  padding: 0.75rem;
+  border-radius: 12px;
+  align-items: flex-start;
+}
+
+.proposal-inputs {
+  flex: 1;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.proposal-inputs label {
+  font-size: 0.85rem;
+}
+
+.proposal-inputs input {
+  border-radius: 8px;
+}
+
+.proposal-actions button {
+  background: transparent;
+  border: 1px solid #ef4444;
+  color: #ef4444;
+  border-radius: 10px;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+  align-self: flex-end;
+}
+
+.proposal-actions button:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.secondary {
+  background: rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  color: #0f172a;
+  border-radius: 10px;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.preview-section pre {
+  margin-top: 1rem;
+  background: #0f172a;
+  color: #f8fafc;
+  font-size: 0.85rem;
+  border-radius: 12px;
+  padding: 1rem;
+  max-height: 400px;
+  overflow: auto;
+}
+
+.preview-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.preview-actions button {
+  background: #4338ca;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 0.5rem 1.1rem;
+  cursor: pointer;
+}
+
+.preview-note {
+  font-size: 0.85rem;
+  color: #0f172a;
+  margin-top: 0.5rem;
+}
+
+.admin-actions {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.admin-actions button:first-child {
+  background: #0f172a;
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 0.6rem 1.3rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.error-text {
+  color: #ef4444;
+  margin-top: 0.5rem;
+}
+
+.log-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+}
+
+.status-badge {
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+}
+
+.status-starting {
+  background: #facc15;
+  color: #92400e;
+}
+
+.status-running {
+  background: #6366f1;
+  color: #eef2ff;
+}
+
+.status-success {
+  background: #16a34a;
+  color: #ecfccb;
+}
+
+.status-failed {
+  background: #dc2626;
+  color: #fee2e2;
+}
+
+.status-idle {
+  background: #e4e4e7;
+  color: #475569;
+}
+
+.status-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  color: #475569;
+  font-size: 0.9rem;
+}
+
+.sse-error {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.log-panel {
+  background: #0f172a;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 1rem;
+  min-height: 200px;
+  color: #f8fafc;
+  font-size: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.log-empty {
+  margin: 0;
+  color: rgba(248, 250, 252, 0.7);
+}
+
+.log-entry {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.log-stream {
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  color: rgba(128, 128, 128, 0.9);
+}
+
+.log-line {
+  flex: 1;
+}
+
+.log-time {
+  font-size: 0.7rem;
+  color: rgba(248, 250, 252, 0.6);
+}
+
+.result-panel {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.contracts-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin-top: 0.8rem;
+}
+
+.contract-card {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 10px;
+  padding: 0.75rem;
+  background: rgba(248, 250, 252, 0.8);
+}
+
+.contract-card strong {
+  display: block;
+  margin-bottom: 0.3rem;
+}

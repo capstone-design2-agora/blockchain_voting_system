@@ -1,30 +1,7 @@
 import { BallotConfigSchema } from "./_lib/ballot-config.js";
 import { readJsonBody } from "./_lib/request.js";
-
-const ADMIN_TOKEN = process.env.ADMIN_DEPLOY_TOKEN;
-const TOKEN_HEADER = "x-admin-deploy-token";
-
-function getBearerToken(headerValue) {
-  if (!headerValue) {
-    return null;
-  }
-  const [type, token] = headerValue.trim().split(" ");
-  if (token && type.toLowerCase() === "bearer") {
-    return token;
-  }
-  return headerValue;
-}
-
-function validateToken(req) {
-  if (!ADMIN_TOKEN) {
-    return { ok: false, status: 500, body: { error: "ADMIN_DEPLOY_TOKEN_MISSING" } };
-  }
-  const provided = getBearerToken(req.headers[TOKEN_HEADER]) || getBearerToken(req.headers.authorization);
-  if (!provided || provided !== ADMIN_TOKEN) {
-    return { ok: false, status: 403, body: { error: "ADMIN_DEPLOY_TOKEN_INVALID" } };
-  }
-  return { ok: true };
-}
+import { validateAdminDeployToken, TOKEN_HEADER } from "./_lib/admin-deploy-token.js";
+import { startDeployment, DeploymentBusyError } from "./_lib/deploy-runner.js";
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -40,7 +17,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "METHOD_NOT_ALLOWED" });
   }
 
-  const tokenCheck = validateToken(req);
+  const tokenCheck = validateAdminDeployToken(req);
   if (!tokenCheck.ok) {
     return res.status(tokenCheck.status).json(tokenCheck.body);
   }
@@ -55,13 +32,15 @@ export default async function handler(req, res) {
       });
     }
 
-    // Placeholder until runner implementation: acknowledge and reserve a run ID.
+    const runId = await startDeployment(parsed.data);
     return res.status(200).json({
       success: true,
-      runId: `dry-${Date.now()}`,
-      config: parsed.data
+      runId
     });
   } catch (error) {
+    if (error instanceof DeploymentBusyError) {
+      return res.status(409).json({ error: "DEPLOYMENT_BUSY" });
+    }
     console.error("/api/internal-deploy", error);
     return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
   }
