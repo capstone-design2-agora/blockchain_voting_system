@@ -11,7 +11,6 @@ ARTIFACTS_DIR="${BLOCKCHAIN_CONTRACTS_DIR}/artifacts"
 FRONTEND_DIR="${PROJECT_ROOT}/frontend"
 FRONTEND_ABI_DIR="${FRONTEND_DIR}/src/abi"
 FRONTEND_ENV_EXAMPLE="${FRONTEND_DIR}/.env.example"
-FRONTEND_ENV_FILE="${FRONTEND_DIR}/.env"
 FRONTEND_ENV_LOCAL="${FRONTEND_DIR}/.env.local"
 # Optional deployment metadata overrides are read from deploy.env.
 DEPLOY_ENV_FILE="${BLOCKCHAIN_CONTRACTS_DIR}/deploy.env"
@@ -198,7 +197,6 @@ sync_frontend_env_files() {
     local verifier_address="$4"
 
     ensure_env_template
-    ensure_env_file_exists "${FRONTEND_ENV_FILE}"
     ensure_env_file_exists "${FRONTEND_ENV_LOCAL}"
 
     local sbt_value="${citizen_sbt_address:-<deployed-sbt-address>}"
@@ -206,20 +204,18 @@ sync_frontend_env_files() {
     local reward_value="${reward_nft_address:-<deployed-reward-address>}"
     local verifier_value="${verifier_address:-<deployed-verifier-address>}"
 
-    for env_file in "${FRONTEND_ENV_FILE}" "${FRONTEND_ENV_LOCAL}"; do
-        replace_or_append_env_key "${env_file}" "REACT_APP_RPC" "${DEFAULT_RPC_ENDPOINT}"
-        replace_or_append_env_key "${env_file}" "REACT_APP_EXPECTED_VOTERS" "${DEFAULT_EXPECTED_VOTERS}"
-        replace_or_append_env_key "${env_file}" "REACT_APP_CHAIN_ID" "${DEFAULT_CHAIN_ID_HEX}"
-        replace_or_append_env_key "${env_file}" "REACT_APP_CHAIN_NAME" "${DEFAULT_CHAIN_NAME}"
-        replace_or_append_env_key "${env_file}" "REACT_APP_CITIZEN_SBT_ADDRESS" "${sbt_value}"
-        replace_or_append_env_key "${env_file}" "REACT_APP_VOTING_CONTRACT_ADDRESS" "${voting_value}"
-        replace_or_append_env_key "${env_file}" "REACT_APP_REWARD_NFT_ADDRESS" "${reward_value}"
-        replace_or_append_env_key "${env_file}" "REACT_APP_VERIFIER_ADDRESS" "${verifier_value}"
-        replace_or_append_env_key "${env_file}" "REACT_APP_PROPOSAL_NAMES" "${PROPOSALS:-}"
-        replace_or_append_env_key "${env_file}" "REACT_APP_PROPOSAL_PLEDGES" "${PLEDGES:-}"
-    done
+    replace_or_append_env_key "${FRONTEND_ENV_LOCAL}" "REACT_APP_RPC" "${DEFAULT_RPC_ENDPOINT}"
+    replace_or_append_env_key "${FRONTEND_ENV_LOCAL}" "REACT_APP_EXPECTED_VOTERS" "${DEFAULT_EXPECTED_VOTERS}"
+    replace_or_append_env_key "${FRONTEND_ENV_LOCAL}" "REACT_APP_CHAIN_ID" "${DEFAULT_CHAIN_ID_HEX}"
+    replace_or_append_env_key "${FRONTEND_ENV_LOCAL}" "REACT_APP_CHAIN_NAME" "${DEFAULT_CHAIN_NAME}"
+    replace_or_append_env_key "${FRONTEND_ENV_LOCAL}" "REACT_APP_CITIZEN_SBT_ADDRESS" "${sbt_value}"
+    replace_or_append_env_key "${FRONTEND_ENV_LOCAL}" "REACT_APP_VOTING_CONTRACT_ADDRESS" "${voting_value}"
+    replace_or_append_env_key "${FRONTEND_ENV_LOCAL}" "REACT_APP_REWARD_NFT_ADDRESS" "${reward_value}"
+    replace_or_append_env_key "${FRONTEND_ENV_LOCAL}" "REACT_APP_VERIFIER_ADDRESS" "${verifier_value}"
+    replace_or_append_env_key "${FRONTEND_ENV_LOCAL}" "REACT_APP_PROPOSAL_NAMES" "${PROPOSALS:-}"
+    replace_or_append_env_key "${FRONTEND_ENV_LOCAL}" "REACT_APP_PROPOSAL_PLEDGES" "${PLEDGES:-}"
 
-    echo -e "${GREEN}✓ Updated frontend env files with contract metadata${NC}"
+    echo -e "${GREEN}✓ Updated frontend .env.local with contract metadata${NC}"
 }
 
 update_frontend_config_json() {

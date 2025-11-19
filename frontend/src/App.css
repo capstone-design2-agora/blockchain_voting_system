@@ -1080,16 +1080,6 @@
   align-items: center;
 }
 
-.vote-modal__explorer {
-  color: #a5b4fc;
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.vote-modal__explorer:hover {
-  text-decoration: underline;
-}
-
 .copy-button {
   border: 1px solid rgba(148, 163, 184, 0.5);
   background: transparent;
@@ -1102,6 +1092,26 @@
 
 .copy-button:hover {
   border-color: rgba(129, 140, 248, 0.7);
+}
+
+.vote-modal__row-actions--stacked {
+  justify-content: flex-start;
+}
+
+.vote-modal__reveal-button {
+  border: 1px solid rgba(129, 140, 248, 0.5);
+  background: rgba(129, 140, 248, 0.15);
+  color: #c7d2fe;
+  border-radius: 999px;
+  padding: 0.45rem 1.2rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.vote-modal__reveal-button:hover {
+  background: rgba(129, 140, 248, 0.3);
+  border-color: rgba(129, 140, 248, 0.8);
 }
 
 .vote-modal__grid {
