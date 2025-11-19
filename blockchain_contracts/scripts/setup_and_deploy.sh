@@ -168,6 +168,10 @@ REACT_APP_EXPECTED_VOTERS=1000
 # Chain metadata used for network validation in the wallet flow
 REACT_APP_CHAIN_ID=0x539
 REACT_APP_CHAIN_NAME=Quorum Local
+
+# Candidate metadata shown in the UI (comma separated names, pledges match deploy.env format)
+REACT_APP_PROPOSAL_NAMES=Alice,Bob,Charlie
+REACT_APP_PROPOSAL_PLEDGES=예산 투명성 강화|거버넌스 참여 확대|실시간 집계 공개;UX 혁신|모바일 최적화|다국어 지원;보안 점검 강화|이중 인증|사고 대응 체계
 EOF
     echo -e "${GREEN}✓ Generated frontend/.env.example template${NC}"
 }
@@ -211,9 +215,36 @@ sync_frontend_env_files() {
         replace_or_append_env_key "${env_file}" "REACT_APP_VOTING_CONTRACT_ADDRESS" "${voting_value}"
         replace_or_append_env_key "${env_file}" "REACT_APP_REWARD_NFT_ADDRESS" "${reward_value}"
         replace_or_append_env_key "${env_file}" "REACT_APP_VERIFIER_ADDRESS" "${verifier_value}"
+        replace_or_append_env_key "${env_file}" "REACT_APP_PROPOSAL_NAMES" "${PROPOSALS:-}"
+        replace_or_append_env_key "${env_file}" "REACT_APP_PROPOSAL_PLEDGES" "${PLEDGES:-}"
     done
 
     echo -e "${GREEN}✓ Updated frontend env files with contract metadata${NC}"
+}
+
+update_frontend_config_json() {
+    local citizen_sbt_address="$1"
+    local voting_address="$2"
+    local reward_nft_address="$3"
+    local verifier_address="$4"
+    local config_file="${FRONTEND_DIR}/public/config.json"
+
+    mkdir -p "$(dirname "${config_file}")"
+
+    # Create JSON content
+    cat > "${config_file}" <<EOF
+{
+  "CITIZEN_SBT_ADDRESS": "${citizen_sbt_address}",
+  "VOTING_CONTRACT_ADDRESS": "${voting_address}",
+  "REWARD_NFT_ADDRESS": "${reward_nft_address}",
+  "VERIFIER_ADDRESS": "${verifier_address}",
+  "RPC_URL": "${DEFAULT_RPC_ENDPOINT}",
+  "CHAIN_ID": "${DEFAULT_CHAIN_ID_HEX}",
+  "CHAIN_NAME": "${DEFAULT_CHAIN_NAME}",
+  "EXPECTED_VOTERS": ${DEFAULT_EXPECTED_VOTERS}
+}
+EOF
+    echo -e "${GREEN}✓ Updated frontend/public/config.json with contract metadata${NC}"
 }
 
 # 1. 합의 알고리즘 확인
@@ -436,6 +467,7 @@ if [[ -z "${CITIZEN_SBT_ADDRESS}" ]]; then
     echo -e "${YELLOW}Deployment addresses not found. Frontend env files will contain placeholders until deployment succeeds.${NC}"
 fi
 sync_frontend_env_files "${CITIZEN_SBT_ADDRESS}" "${VOTING_ADDRESS}" "${REWARD_NFT_ADDRESS}" "${VERIFIER_ADDRESS}"
+update_frontend_config_json "${CITIZEN_SBT_ADDRESS}" "${VOTING_ADDRESS}" "${REWARD_NFT_ADDRESS}" "${VERIFIER_ADDRESS}"
 
 # 완료
 echo -e "\n${GREEN}========================================${NC}"

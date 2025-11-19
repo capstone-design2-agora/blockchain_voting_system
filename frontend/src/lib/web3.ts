@@ -1,6 +1,8 @@
 import Web3 from "web3";
 
-const RPC_URL = process.env.REACT_APP_RPC || "http://localhost:9545";
+import { getConfig } from "./config";
+
+const getRpcUrl = () => getConfig().RPC_URL;
 
 let web3Instance: Web3 | null = null;
 
@@ -9,7 +11,7 @@ export function getWeb3(): Web3 {
         if (typeof window !== "undefined" && (window as any).ethereum) {
             web3Instance = new Web3((window as any).ethereum);
         } else {
-            web3Instance = new Web3(new Web3.providers.HttpProvider(RPC_URL));
+            web3Instance = new Web3(new Web3.providers.HttpProvider(getRpcUrl()));
         }
     }
     return web3Instance;
@@ -102,11 +104,11 @@ export function hasBrowserWallet(): boolean {
 }
 
 export function isExpectedChain(chainId: string): boolean {
-    return chainId === CHAIN_ID;
+    return chainId === getConfig().CHAIN_ID;
 }
 
 export function getExpectedChainLabel(): string {
-    return CHAIN_NAME;
+    return getConfig().CHAIN_NAME;
 }
 
 export async function ensureWalletConnection(): Promise<void> {
@@ -147,5 +149,6 @@ export async function disconnectWallet(): Promise<void> {
     }
 }
 
-export const CHAIN_ID = process.env.REACT_APP_CHAIN_ID || "0x539";
-export const CHAIN_NAME = process.env.REACT_APP_CHAIN_NAME || "Quorum Local";
+// Removed constants to force usage of getConfig()
+// export const CHAIN_ID = ...
+// export const CHAIN_NAME = ...

@@ -54,6 +54,7 @@ fi
 VOTING_ADDRESS=$(node -pe "JSON.parse(require('fs').readFileSync('$ARTIFACT_PATH','utf8')).contracts.VotingWithSBT.address")
 SBT_ADDRESS=$(node -pe "JSON.parse(require('fs').readFileSync('$ARTIFACT_PATH','utf8')).contracts.CitizenSBT.address")
 REWARD_ADDRESS=$(node -pe "JSON.parse(require('fs').readFileSync('$ARTIFACT_PATH','utf8')).contracts.VotingRewardNFT.address")
+VERIFIER_ADDRESS=$(node -pe "try { JSON.parse(require('fs').readFileSync('$ARTIFACT_PATH','utf8')).contracts.CitizenSBT.verifier } catch(e) { '' }")
 
 echo "📍 신규 VotingWithSBT 주소: $VOTING_ADDRESS"
 echo ""
@@ -71,6 +72,25 @@ else
   echo "⚠️  프론트엔드 .env.local 파일을 찾을 수 없습니다. 수동 업데이트 필요"
 fi
 
+# 프론트엔드 config.json 업데이트
+CONFIG_FILE="${FRONTEND_DIR}/public/config.json"
+mkdir -p "$(dirname "$CONFIG_FILE")"
+
+echo "🔄 프론트엔드 config.json 업데이트 중..."
+cat > "$CONFIG_FILE" <<EOF
+{
+  "CITIZEN_SBT_ADDRESS": "$SBT_ADDRESS",
+  "VOTING_CONTRACT_ADDRESS": "$VOTING_ADDRESS",
+  "REWARD_NFT_ADDRESS": "$REWARD_ADDRESS",
+  "VERIFIER_ADDRESS": "$VERIFIER_ADDRESS",
+  "RPC_URL": "http://localhost:9545",
+  "CHAIN_ID": "0x539",
+  "CHAIN_NAME": "Quorum Local",
+  "EXPECTED_VOTERS": 1000
+}
+EOF
+echo "✅ config.json 업데이트 완료"
+
 VOTING_ABI_SOURCE="${CONTRACTS_DIR}/artifacts/VotingWithSBT.abi.json"
 VOTING_ABI_TARGET="${FRONTEND_DIR}/src/abi/VotingWithSBT.abi.json"
 if [ -f "$VOTING_ABI_SOURCE" ]; then
@@ -87,6 +107,7 @@ echo "========================================"
 echo "✅ VotingWithSBT 재배포 완료"
 echo "========================================"
 echo "다음 단계를 수행하세요:"
-echo "  1. 프론트엔드 (npm start)를 재시작하여 새 주소를 반영하세요"
+echo "다음 단계를 수행하세요:"
+echo "  1. 브라우저를 새로고침(F5)하여 새 주소를 반영하세요"
 echo "  2. 필요한 경우 백엔드 환경 변수(CITIZEN_SBT_CONTRACT_ADDRESS 등)를 확인하세요"
 echo "========================================"

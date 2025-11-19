@@ -179,6 +179,25 @@ if [ $? -eq 0 ]; then
             echo ""
         fi
         
+        # 프론트엔드 config.json 업데이트
+        CONFIG_FILE="../frontend/public/config.json"
+        mkdir -p "$(dirname "$CONFIG_FILE")"
+        
+        echo "🔄 프론트엔드 config.json 업데이트 중..."
+        cat > "$CONFIG_FILE" <<EOF
+{
+  "CITIZEN_SBT_ADDRESS": "$CITIZEN_SBT",
+  "VOTING_CONTRACT_ADDRESS": "$VOTING_CONTRACT",
+  "REWARD_NFT_ADDRESS": "$REWARD_NFT",
+  "VERIFIER_ADDRESS": "$VERIFIER",
+  "RPC_URL": "http://localhost:9545",
+  "CHAIN_ID": "0x539",
+  "CHAIN_NAME": "Quorum Local",
+  "EXPECTED_VOTERS": 1000
+}
+EOF
+        echo "✅ config.json 업데이트 완료"
+        
         echo "💡 SBT 시스템 테스트:"
         echo "  node verify_sbt.js              # SBT 발급 테스트"
         echo "  node test_vote_with_sbt.js      # SBT 투표 테스트"

@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router';
 import useEmailVerificationStore from '../../stores/emailVerificationStore';
 import { EmailVerificationAPI } from '../../lib/emailVerificationApi';
 import { isEmailValid, isDomainAllowed, getAllowedDomains } from '../../lib/emailUtils';
-import { connectWallet, switchNetwork, CHAIN_ID, CHAIN_NAME } from '../../lib/web3';
+import { connectWallet, switchNetwork } from '../../lib/web3';
+import { getConfig } from '../../lib/config';
 import EmailInput from '../components/EmailInput';
 import WalletConnector from '../components/WalletConnector';
 
@@ -74,9 +75,9 @@ export default function EmailInputStep() {
             }
 
             await switchNetwork(
-                CHAIN_ID,
-                CHAIN_NAME,
-                process.env.REACT_APP_RPC || 'http://localhost:9545'
+                getConfig().CHAIN_ID,
+                getConfig().CHAIN_NAME,
+                getConfig().RPC_URL
             );
 
             setWallet(accounts[0]);
@@ -109,9 +110,9 @@ export default function EmailInputStep() {
                 }
 
                 await switchNetwork(
-                    CHAIN_ID,
-                    CHAIN_NAME,
-                    process.env.REACT_APP_RPC || 'http://localhost:9545'
+                    getConfig().CHAIN_ID,
+                    getConfig().CHAIN_NAME,
+                    getConfig().RPC_URL
                 );
 
                 setWallet(accounts[0]);

@@ -33,7 +33,7 @@ type CandidateRecord = {
   pledges?: string[];
 };
 
-const FALLBACK_CANDIDATES: CandidateRecord[] = [
+const DEFAULT_FALLBACK_CANDIDATES: CandidateRecord[] = [
   {
     id: 0,
     name: "Alice",
@@ -74,6 +74,67 @@ const FALLBACK_CANDIDATES: CandidateRecord[] = [
     ],
   },
 ];
+
+const FALLBACK_STYLE_PRESETS = DEFAULT_FALLBACK_CANDIDATES.map(
+  ({ accent, icon, votes }) => ({
+    accent,
+    icon,
+    votes,
+  })
+);
+
+const buildEnvFallbackCandidates = (): CandidateRecord[] => {
+  const rawNames = process.env.REACT_APP_PROPOSAL_NAMES ?? "";
+  const rawPledges = process.env.REACT_APP_PROPOSAL_PLEDGES ?? "";
+  const names = rawNames
+    .split(",")
+    .map((name) => name.trim())
+    .filter(Boolean);
+
+  if (!names.length) {
+    return [];
+  }
+
+  const pledgeGroups =
+    rawPledges.length > 0
+      ? rawPledges.split(";").map((group) =>
+          group
+            .split("|")
+            .map((pledge) => pledge.trim())
+            .filter(Boolean)
+        )
+      : [];
+
+  return names.map((name, index) => {
+    const style =
+      FALLBACK_STYLE_PRESETS[index % FALLBACK_STYLE_PRESETS.length] ?? {
+        accent: "linear-gradient(135deg, #1f2937, #3b4b80)",
+        icon: "🗳️",
+        votes: 0,
+      };
+    const candidatePledges =
+      pledgeGroups[index] && pledgeGroups[index].length > 0
+        ? pledgeGroups[index]
+        : [`${name} 후보의 공약이 준비 중입니다.`];
+
+    return {
+      id: index,
+      name,
+      votes: style.votes,
+      description: `${name} 후보의 공약을 확인해 보세요.`,
+      accent: style.accent,
+      icon: style.icon,
+      pledges: candidatePledges,
+    };
+  });
+};
+
+const FALLBACK_CANDIDATES: CandidateRecord[] = (() => {
+  const envCandidates = buildEnvFallbackCandidates();
+  return envCandidates.length > 0
+    ? envCandidates
+    : DEFAULT_FALLBACK_CANDIDATES;
+})();
 
 type BallotMeta = {
   id: string;

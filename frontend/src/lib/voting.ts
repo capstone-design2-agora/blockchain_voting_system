@@ -2,6 +2,7 @@ import type { Contract } from "web3";
 import type { TransactionReceipt } from "web3-types";
 import type { AbiItem } from "web3-utils";
 import { getWeb3 } from "./web3";
+import { getConfig } from "./config";
 import VotingWithSBTAbi from "../abi/VotingWithSBT.abi.json";
 
 export type Proposal = {
@@ -11,7 +12,10 @@ export type Proposal = {
   pledges?: string[];
 };
 
-const contractAddress = process.env.REACT_APP_VOTING_CONTRACT_ADDRESS;
+// Removed top-level constants to force usage of getConfig()
+// const contractAddress = ...
+// const expectedVoters = ...
+
 const typedAbi = VotingWithSBTAbi as AbiItem[];
 let cachedWriteContract: Contract<any> | null = null;
 let cachedReadContract: Contract<any> | null = null;
@@ -21,12 +25,6 @@ let inFlightVote:
       promise: Promise<TransactionReceipt>;
     }
   | null = null;
-
-const expectedVotersRaw = process.env.REACT_APP_EXPECTED_VOTERS;
-const expectedVoters =
-  expectedVotersRaw && !Number.isNaN(Number(expectedVotersRaw))
-    ? Number(expectedVotersRaw)
-    : null;
 
 export type ContractBallotMetadata = {
   id: string;
@@ -41,9 +39,10 @@ export type ContractBallotMetadata = {
 function assertVotingContract(
   mode: "read" | "write" = "write"
 ): Contract<any> {
+  const contractAddress = getConfig().VOTING_CONTRACT_ADDRESS;
   if (!contractAddress) {
     throw new Error(
-      "스마트 컨트랙트 주소가 설정되지 않았어요. frontend/.env.local 파일에서 REACT_APP_VOTING_CONTRACT_ADDRESS를 확인해 주세요."
+      "스마트 컨트랙트 주소가 설정되지 않았어요. config.json을 확인해 주세요."
     );
   }
   const web3 = getWeb3();
@@ -139,7 +138,7 @@ export function castVote(proposalId: number): Promise<TransactionReceipt> {
 
 export async function fetchBallotMetadata(): Promise<ContractBallotMetadata> {
   console.log('[fetchBallotMetadata] Starting...');
-  console.log('[fetchBallotMetadata] Contract address:', contractAddress);
+  console.log('[fetchBallotMetadata] Contract address:', getConfig().VOTING_CONTRACT_ADDRESS);
 
   const contract = assertVotingContract("read");
   console.log('[fetchBallotMetadata] Contract instance created');
@@ -252,7 +251,7 @@ export function calculateTurnout(
   overrideExpected?: number | null
 ): number {
   const baseline =
-    overrideExpected && overrideExpected > 0 ? overrideExpected : expectedVoters;
+    overrideExpected && overrideExpected > 0 ? overrideExpected : getConfig().EXPECTED_VOTERS;
   if (!baseline || baseline <= 0) {
     return totalVotes > 0 ? 100 : 0;
   }
@@ -260,5 +259,5 @@ export function calculateTurnout(
 }
 
 export function getExpectedVoters(): number | null {
-  return expectedVoters;
+  return getConfig().EXPECTED_VOTERS;
 }

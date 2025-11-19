@@ -1,181 +1,256 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  ArrowLeft,
+  ArrowLeftRight,
+  ClipboardCheck,
+  ClipboardList,
+  Loader2,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import { useNavigate } from "react-router";
-import { ArrowLeftRight, Award, Calendar, User, X } from "lucide-react";
-import type { ImgHTMLAttributes } from "react";
+import type { NavigateFunction } from "react-router";
+import useEmailVerificationStore from "../stores/emailVerificationStore";
+import useNFTTradingStore, { NFTTradingTab } from "../stores/nftTradingStore";
+import type { UserSummary } from "../types/nftTrading";
+import { checkHasSBT } from "../lib/sbt";
+import { useToast } from "../components/ToastProvider";
 import "./NFTExchangePage.css";
 
-type TabKey = "market" | "my-collection" | "proposals";
+interface TabConfig {
+  key: NFTTradingTab;
+  label: string;
+  description: string;
+  actionLabel?: string;
+}
 
-type NFT = {
-  id: string;
-  name: string;
-  image: string;
-  rarity: "common" | "rare" | "epic" | "legendary";
-  votingEvent: string;
-  date: string;
-  owner?: string;
-};
-
-type ExchangeProposal = {
-  id: string;
-  offeredNFT: NFT;
-  requestedNFT: NFT;
-  proposer: string;
-  date: string;
-};
-
-const rarityLabels: Record<NFT["rarity"], string> = {
-  common: "일반",
-  rare: "레어",
-  epic: "에픽",
-  legendary: "전설",
-};
-
-const rarityClassNames: Record<NFT["rarity"], string> = {
-  common: "rarity-badge--common",
-  rare: "rarity-badge--rare",
-  epic: "rarity-badge--epic",
-  legendary: "rarity-badge--legendary",
-};
-
-const marketNFTs: NFT[] = [
+const TAB_CONFIG: TabConfig[] = [
   {
-    id: "4",
-    name: "축제 부스 투표",
-    image:
-      "https://images.unsplash.com/photo-1763120432102-9a627393d407?auto=format&fit=crop&w=800&q=80",
-    rarity: "rare",
-    votingEvent: "가을 축제 인기 부스",
-    date: "2024.06.01",
-    owner: "0xa3f...2b1d",
+    key: "market",
+    label: "마켓",
+    description: "커뮤니티가 등록한 투표 NFT를 한눈에 탐색하세요.",
+    actionLabel: "필터 설정 예정",
   },
   {
-    id: "5",
-    name: "체육대회 응원단장",
-    image:
-      "https://images.unsplash.com/photo-1758094651744-cd6d4367484d?auto=format&fit=crop&w=800&q=80",
-    rarity: "epic",
-    votingEvent: "청백전 응원단장 선거",
-    date: "2024.10.16",
-    owner: "0x7c2...9e4a",
+    key: "my-listings",
+    label: "내 Listing",
+    description: "등록한 NFT 현황, 잠금 상태, 진행 중인 거래를 확인합니다.",
+    actionLabel: "NFT 등록 흐름 준비중",
   },
   {
-    id: "6",
-    name: "급식 메뉴 투표",
-    image:
-      "https://images.unsplash.com/photo-1758094651716-c353aafda66b?auto=format&fit=crop&w=800&q=80",
-    rarity: "common",
-    votingEvent: "이달의 급식 메뉴",
-    date: "2024.08.15",
-    owner: "0x5d8...3f2c",
-  },
-  {
-    id: "7",
-    name: "교지 편집장 선거",
-    image:
-      "https://images.unsplash.com/photo-1761408021830-8f8f2761d95a?auto=format&fit=crop&w=800&q=80",
-    rarity: "rare",
-    votingEvent: "교지 편집장 선출",
-    date: "2024.05.20",
-    owner: "0x9b4...7a1e",
-  },
-  {
-    id: "8",
-    name: "수학여행 장소 투표",
-    image:
-      "https://images.unsplash.com/photo-1724668639593-cbe1a7029494?auto=format&fit=crop&w=800&q=80",
-    rarity: "legendary",
-    votingEvent: "2024 수학여행 장소",
-    date: "2024.07.12",
-    owner: "0x2e6...5c9b",
+    key: "proposals",
+    label: "받은 제안",
+    description: "내 NFT에 도착한 교환 제안을 승인/거절할 수 있어요.",
+    actionLabel: "의사결정 모달 준비중",
   },
 ];
 
-const myCollection: NFT[] = [
+const PLACEHOLDER_CARDS = [
   {
-    id: "1",
-    name: "학생회장 선거 투표",
-    image:
-      "https://images.unsplash.com/photo-1761727799802-d350597977fc?auto=format&fit=crop&w=800&q=80",
-    rarity: "epic",
-    votingEvent: "2024 학생회장 선거",
-    date: "2024.03.09",
+    icon: <Sparkles size={20} />,
+    title: "교환 요청 관리",
+    subtitle: "제안 진척도를 실시간으로 확인 (준비중)",
   },
   {
-    id: "2",
-    name: "학급 반장 선출",
-    image:
-      "https://images.unsplash.com/photo-1758094651744-cd6d4367484d?auto=format&fit=crop&w=800&q=80",
-    rarity: "rare",
-    votingEvent: "1학기 학급 임원 선거",
-    date: "2024.06.01",
+    icon: <ShieldCheck size={20} />,
+    title: "안전한 거래",
+    subtitle: "SBT 검증 기반 접근 제어 적용",
   },
   {
-    id: "3",
-    name: "동아리 회장 투표",
-    image:
-      "https://images.unsplash.com/photo-1627909477137-dfef12d46d47?auto=format&fit=crop&w=800&q=80",
-    rarity: "legendary",
-    votingEvent: "댄스 동아리 회장 선거",
-    date: "2024.04.10",
-  },
-];
-
-const exchangeProposals: ExchangeProposal[] = [
-  {
-    id: "p1",
-    offeredNFT: marketNFTs[0],
-    requestedNFT: myCollection[0],
-    proposer: "0xa3f...2b1d",
-    date: "2024.11.15",
-  },
-  {
-    id: "p2",
-    offeredNFT: marketNFTs[3],
-    requestedNFT: myCollection[2],
-    proposer: "0x9b4...7a1e",
-    date: "2024.11.16",
+    icon: <ClipboardList size={20} />,
+    title: "Listing 대시보드",
+    subtitle: "등록/잠금/완료 상태 추적 UI 작업 중",
   },
 ];
 
 export default function NFTExchangePage() {
   const navigate = useNavigate();
-  const [selectedTab, setSelectedTab] = useState<TabKey>("market");
-  const [selectedNFT, setSelectedNFT] = useState<NFT | null>(null);
+  const { showToast } = useToast();
+  const {
+    walletAddress: verificationWallet,
+    setWallet: setVerificationWallet,
+  } = useEmailVerificationStore();
+  const {
+    activeTab,
+    setActiveTab,
+    setWalletAddress,
+    userSummary,
+    setUserSummary,
+    isUserSummaryLoading,
+    setUserSummaryLoading,
+  } = useNFTTradingStore();
 
-  const proposals = exchangeProposals;
-  const myNFTs = myCollection;
+  const [detectedWallet, setDetectedWallet] = useState<string | null>(verificationWallet);
+  const [isCheckingAccess, setIsCheckingAccess] = useState(true);
+  const [accessGranted, setAccessGranted] = useState(false);
+  const [accessError, setAccessError] = useState<"wallet" | "sbt" | "unknown" | null>(null);
 
-  const handleExchange = (nft: NFT) => {
-    setSelectedNFT(nft);
-  };
+  // Hydrate wallet state if user already connected MetaMask outside of this session
+  useEffect(() => {
+    setDetectedWallet(verificationWallet);
+    if (verificationWallet) {
+      return;
+    }
 
-  const closeModal = () => {
-    setSelectedNFT(null);
-  };
+    const ethereum = (window as any).ethereum;
+    if (!ethereum) {
+      return;
+    }
 
-  const handleCancelExchange = (nftId: string) => {
-    window.alert("NFT 교환 등록이 취소되었습니다.");
-  };
+    let mounted = true;
+    ethereum
+      .request({ method: "eth_accounts" })
+      .then((accounts: string[]) => {
+        if (mounted && accounts.length > 0) {
+          setVerificationWallet(accounts[0]);
+          setDetectedWallet(accounts[0]);
+        }
+      })
+      .catch(() => {
+        /* ignore */
+      });
 
-  const handleApproveProposal = (proposalId: string) => {
-    window.alert("교환 제안이 승인되었습니다!");
-  };
+    return () => {
+      mounted = false;
+    };
+  }, [verificationWallet, setVerificationWallet]);
 
-  const handleRejectProposal = (proposalId: string) => {
-    window.alert("교환 제안이 거절되었습니다.");
-  };
+  // Guard route by checking wallet + SBT ownership
+  useEffect(() => {
+    let cancelled = false;
+
+    const enforceAccess = async () => {
+      if (!detectedWallet) {
+        setAccessGranted(false);
+        setIsCheckingAccess(false);
+        if (accessError !== "wallet") {
+          setAccessError("wallet");
+          showToast({
+            title: "지갑 연결이 필요합니다",
+            description: "NFT 거래소는 인증된 지갑으로만 접근할 수 있어요.",
+            variant: "error",
+          });
+        }
+        navigate("/email-verification", { replace: true });
+        return;
+      }
+
+      try {
+        setIsCheckingAccess(true);
+        const hasSBT = await checkHasSBT(detectedWallet);
+        if (cancelled) {
+          return;
+        }
+
+        if (!hasSBT) {
+          setAccessGranted(false);
+          setIsCheckingAccess(false);
+          if (accessError !== "sbt") {
+            setAccessError("sbt");
+            showToast({
+              title: "투표 자격이 확인되지 않았어요",
+              description: "SBT 발급을 완료한 뒤 다시 시도해주세요.",
+              variant: "error",
+            });
+          }
+          navigate("/email-verification", { replace: true });
+          return;
+        }
+
+        setWalletAddress(detectedWallet);
+        setAccessGranted(true);
+        setIsCheckingAccess(false);
+        setAccessError(null);
+      } catch (error) {
+        console.error("NFT exchange access check failed", error);
+        setAccessGranted(false);
+        setIsCheckingAccess(false);
+        if (accessError !== "unknown") {
+          setAccessError("unknown");
+          showToast({
+            title: "접근 검증 중 문제가 발생했어요",
+            description: "잠시 후 다시 시도하거나 새로고침해주세요.",
+            variant: "error",
+          });
+        }
+        navigate("/email-verification", { replace: true });
+      }
+    };
+
+    enforceAccess();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [detectedWallet, showToast, navigate, setWalletAddress, accessError]);
+
+  // Provide placeholder summary while API wiring is pending
+  useEffect(() => {
+    if (!accessGranted || userSummary || isUserSummaryLoading) {
+      return;
+    }
+
+    setUserSummaryLoading(true);
+    const timer = window.setTimeout(() => {
+      setUserSummary({
+        totalListings: 0,
+        pendingProposals: 0,
+        lockedListings: 0,
+        drafts: 0,
+        lastSyncedAt: new Date().toISOString(),
+      });
+      setUserSummaryLoading(false);
+    }, 400);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [accessGranted, userSummary, isUserSummaryLoading, setUserSummary, setUserSummaryLoading]);
+
+  const tabContent = useMemo(() => {
+    const initial: Record<NFTTradingTab, React.ReactNode> = {
+      market: null,
+      "my-listings": null,
+      proposals: null,
+    };
+
+    return TAB_CONFIG.reduce<Record<NFTTradingTab, React.ReactNode>>((acc, tab) => {
+      acc[tab.key] = (
+        <TabPlaceholder
+          key={tab.key}
+          title={tab.label}
+          description={tab.description}
+          actionLabel={tab.actionLabel}
+          onAction={() => handleCTA(tab.key, navigate)}
+        />
+      );
+      return acc;
+    }, initial);
+  }, [navigate]);
+
+  if (isCheckingAccess) {
+    return <AccessLoadingState />;
+  }
+
+  if (!accessGranted) {
+    return null;
+  }
 
   return (
     <div className="nft-exchange-page">
       <header className="nft-exchange-header">
         <div className="nft-exchange-header-content">
+          <button type="button" className="breadcrumb-button" onClick={() => navigate("/email-verification")}
+            aria-label="이메일 인증으로 돌아가기">
+            <ArrowLeft size={16} />
+            <span>이메일 인증</span>
+          </button>
           <div className="nft-exchange-title">
             <div className="nft-exchange-icon">
               <ArrowLeftRight size={20} />
             </div>
             <div>
-              <p className="nft-subtitle">투표 NFT P2P 교환</p>
+              <p className="nft-subtitle">Phase 1 · 거래소 프레임워크</p>
               <h1>커뮤니티 NFT 거래소</h1>
             </div>
           </div>
@@ -186,92 +261,73 @@ export default function NFTExchangePage() {
             >
               내 컬렉션 보기
             </button>
-            <button
-              className="nft-exchange-button"
-              onClick={() => navigate("/voting")}
-            >
+            <button className="nft-exchange-button" onClick={() => navigate("/voting")}>
               투표하러 가기
             </button>
           </div>
         </div>
+        <UserSummaryCard userSummary={userSummary} isLoading={isUserSummaryLoading} />
       </header>
 
       <main className="nft-exchange-content">
         <div className="nft-exchange-tabs">
-          <TabButton
-            label="교환 가능한 NFT"
-            isActive={selectedTab === "market"}
-            onClick={() => setSelectedTab("market")}
-          />
-          <TabButton
-            label="내가 올린 NFT"
-            isActive={selectedTab === "my-collection"}
-            onClick={() => setSelectedTab("my-collection")}
-          />
-          <TabButton
-            label="받은 교환 제안"
-            isActive={selectedTab === "proposals"}
-            onClick={() => setSelectedTab("proposals")}
-            badge={proposals.length}
-          />
+          {TAB_CONFIG.map((tab) => (
+            <TabButton
+              key={tab.key}
+              label={tab.label}
+              isActive={activeTab === tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              badge={tab.key === "proposals" ? userSummary?.pendingProposals ?? 0 : undefined}
+            />
+          ))}
         </div>
 
-        {selectedTab === "market" && (
-          <div className="nft-grid">
-            {marketNFTs.map((nft) => (
-              <NFTCard
-                key={nft.id}
-                nft={nft}
-                buttonText="교환 제안"
-                onClick={() => handleExchange(nft)}
-              />
-            ))}
-          </div>
-        )}
-
-        {selectedTab === "my-collection" && (
-          <div>
-            {myNFTs.length ? (
-              <div className="nft-grid">
-                {myNFTs.map((nft) => (
-                  <NFTCard
-                    key={nft.id}
-                    nft={nft}
-                    buttonText="교환 취소"
-                    variant="secondary"
-                    onClick={() => handleCancelExchange(nft.id)}
-                  />
-                ))}
+        <section className="nft-placeholder-grid">
+          {PLACEHOLDER_CARDS.map((card) => (
+            <article key={card.title} className="nft-placeholder-card">
+              <div className="nft-placeholder-icon">{card.icon}</div>
+              <div>
+                <p className="nft-placeholder-title">{card.title}</p>
+                <p className="nft-placeholder-subtitle">{card.subtitle}</p>
               </div>
-            ) : (
-              <EmptyState message="올린 NFT가 없습니다" actionLabel="NFT 등록하기" />
-            )}
-          </div>
-        )}
+            </article>
+          ))}
+        </section>
 
-        {selectedTab === "proposals" && (
-          <div>
-            {proposals.length ? (
-              <div className="proposal-list">
-                {proposals.map((proposal) => (
-                  <ProposalCard
-                    key={proposal.id}
-                    proposal={proposal}
-                    onApprove={() => handleApproveProposal(proposal.id)}
-                    onReject={() => handleRejectProposal(proposal.id)}
-                  />
-                ))}
-              </div>
-            ) : (
-              <EmptyState message="받은 교환 제안이 없습니다" />
-            )}
-          </div>
-        )}
+        <div className="nft-tab-panel" role="tabpanel">
+          {TAB_CONFIG.map((tab) => (
+            <div key={tab.key} hidden={activeTab !== tab.key} className="nft-tab-panel-content">
+              {activeTab === tab.key ? tabContent[tab.key] : null}
+            </div>
+          ))}
+        </div>
       </main>
+    </div>
+  );
+}
 
-      {selectedNFT && (
-        <ExchangeModal nft={selectedNFT} myNFTs={myNFTs} onClose={closeModal} />
-      )}
+function handleCTA(tab: NFTTradingTab, navigate: NavigateFunction) {
+  if (tab === "my-listings") {
+    navigate("/my-nfts");
+    return;
+  }
+
+  if (tab === "market") {
+    // Market CTA will later open composer; for now navigate home of trading section
+    navigate("/nft-exchange");
+    return;
+  }
+
+  navigate("/voting");
+}
+
+function AccessLoadingState() {
+  return (
+    <div className="nft-access-loader">
+      <div className="nft-access-spinner">
+        <Loader2 size={32} className="spinner" />
+        <p>거래소 접근 권한을 확인하는 중...</p>
+      </div>
     </div>
   );
 }
@@ -284,6 +340,7 @@ interface TabButtonProps {
 }
 
 function TabButton({ label, isActive, onClick, badge }: TabButtonProps) {
+  const showBadge = typeof badge === "number" && badge > 0;
   return (
     <button
       className={`nft-tab-button ${isActive ? "nft-tab-button--active" : ""}`}
@@ -291,218 +348,65 @@ function TabButton({ label, isActive, onClick, badge }: TabButtonProps) {
       type="button"
     >
       {label}
-      {badge ? <span className="nft-tab-badge">{badge}</span> : null}
+      {showBadge ? <span className="nft-tab-badge">{badge}</span> : null}
     </button>
   );
 }
 
-interface NFTCardProps {
-  nft: NFT;
-  onClick: () => void;
-  buttonText: string;
-  variant?: "primary" | "secondary";
+interface TabPlaceholderProps {
+  title: string;
+  description: string;
+  actionLabel?: string;
+  onAction?: () => void;
 }
 
-function NFTCard({ nft, onClick, buttonText, variant = "primary" }: NFTCardProps) {
+function TabPlaceholder({ title, description, actionLabel, onAction }: TabPlaceholderProps) {
   return (
-    <div className="nft-card">
-      <div className="nft-card-image">
-        <FallbackImage src={nft.image} alt={nft.name} />
-        <div className={`rarity-badge ${rarityClassNames[nft.rarity]}`}>
-          {rarityLabels[nft.rarity]}
-        </div>
-      </div>
-      <div className="nft-card-body">
-        <h3>{nft.name}</h3>
-        <div className="nft-card-meta">
-          <span>
-            <Award size={16} />
-            {nft.votingEvent}
-          </span>
-          <span>
-            <Calendar size={16} />
-            {nft.date}
-          </span>
-          {nft.owner && <small>소유자: {nft.owner}</small>}
-        </div>
-        <button
-          type="button"
-          className={`nft-card-button ${variant === "secondary" ? "nft-card-button--secondary" : ""}`}
-          onClick={onClick}
-        >
-          {buttonText}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-interface ProposalCardProps {
-  proposal: ExchangeProposal;
-  onApprove: () => void;
-  onReject: () => void;
-}
-
-function ProposalCard({ proposal, onApprove, onReject }: ProposalCardProps) {
-  return (
-    <div className="proposal-card">
-      <div className="proposal-card-header">
+    <div className="tab-placeholder">
+      <div className="tab-placeholder-body">
+        <ClipboardCheck size={18} />
         <div>
-          <p className="proposal-title">새로운 교환 제안</p>
-          <div className="proposal-meta">
-            <span>
-              <User size={14} />
-              {proposal.proposer}
-            </span>
-            <span>
-              <Calendar size={14} />
-              {proposal.date}
-            </span>
-          </div>
+          <p className="tab-placeholder-title">{title} 준비중</p>
+          <p className="tab-placeholder-description">{description}</p>
         </div>
       </div>
-      <div className="proposal-body">
-        <div className="proposal-nft">
-          <p className="proposal-label">받을 NFT</p>
-          <div className="proposal-image">
-            <FallbackImage src={proposal.offeredNFT.image} alt={proposal.offeredNFT.name} />
-            <div className={`rarity-badge ${rarityClassNames[proposal.offeredNFT.rarity]}`}>
-              {rarityLabels[proposal.offeredNFT.rarity]}
-            </div>
-          </div>
-          <p className="proposal-name">{proposal.offeredNFT.name}</p>
-          <small>{proposal.offeredNFT.votingEvent}</small>
-        </div>
-        <div className="proposal-arrow">
-          <div className="proposal-arrow-circle">
-            <ArrowLeftRight size={20} />
-          </div>
-        </div>
-        <div className="proposal-nft">
-          <p className="proposal-label">줄 NFT</p>
-          <div className="proposal-image">
-            <FallbackImage src={proposal.requestedNFT.image} alt={proposal.requestedNFT.name} />
-            <div className={`rarity-badge ${rarityClassNames[proposal.requestedNFT.rarity]}`}>
-              {rarityLabels[proposal.requestedNFT.rarity]}
-            </div>
-          </div>
-          <p className="proposal-name">{proposal.requestedNFT.name}</p>
-          <small>{proposal.requestedNFT.votingEvent}</small>
-        </div>
-      </div>
-      <div className="proposal-actions">
-        <button type="button" className="nft-card-button nft-card-button--secondary" onClick={onReject}>
-          거절
+      {actionLabel ? (
+        <button type="button" className="tab-placeholder-cta" onClick={onAction}>
+          {actionLabel}
         </button>
-        <button type="button" className="nft-card-button" onClick={onApprove}>
-          승인
-        </button>
-      </div>
+      ) : null}
     </div>
   );
 }
 
-interface ExchangeModalProps {
-  nft: NFT;
-  myNFTs: NFT[];
-  onClose: () => void;
-}
-
-function ExchangeModal({ nft, myNFTs, onClose }: ExchangeModalProps) {
-  const [selectedMyNFT, setSelectedMyNFT] = useState<NFT | null>(null);
-
-  const handleSubmit = () => {
-    if (selectedMyNFT) {
-      window.alert(`교환 제안이 전송되었습니다!\n내 NFT: ${selectedMyNFT.name}\n상대 NFT: ${nft.name}`);
-      onClose();
-    }
-  };
-
+function UserSummaryCard({ userSummary, isLoading }: { userSummary: UserSummary | null; isLoading: boolean }) {
   return (
-    <div className="exchange-modal-overlay" role="dialog" aria-modal="true">
-      <div className="exchange-modal">
-        <div className="exchange-modal-header">
-          <h2>NFT 교환 제안</h2>
-          <button type="button" onClick={onClose} aria-label="닫기">
-            <X size={18} />
-          </button>
-        </div>
-        <div className="exchange-modal-content">
-          <div className="exchange-preview">
-            <div className="preview-card">
-              <p className="proposal-label">내 NFT</p>
-              {selectedMyNFT ? (
-                <FallbackImage src={selectedMyNFT.image} alt={selectedMyNFT.name} />
-              ) : (
-                <div className="preview-placeholder">NFT를 선택하세요</div>
-              )}
-              {selectedMyNFT && <p className="proposal-name">{selectedMyNFT.name}</p>}
-            </div>
-            <div className="proposal-arrow">
-              <div className="proposal-arrow-circle">
-                <ArrowLeftRight size={20} />
-              </div>
-            </div>
-            <div className="preview-card">
-              <p className="proposal-label">교환할 NFT</p>
-              <FallbackImage src={nft.image} alt={nft.name} />
-              <p className="proposal-name">{nft.name}</p>
-            </div>
-          </div>
-          <div>
-            <h3 className="modal-subtitle">교환에 사용할 NFT 선택</h3>
-            <div className="modal-grid">
-              {myNFTs.map((myNft) => (
-                <button
-                  key={myNft.id}
-                  type="button"
-                  className={`modal-nft-option ${selectedMyNFT?.id === myNft.id ? "modal-nft-option--selected" : ""}`}
-                  onClick={() => setSelectedMyNFT(myNft)}
-                >
-                  <FallbackImage src={myNft.image} alt={myNft.name} />
-                  <p>{myNft.name}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div className="exchange-modal-actions">
-          <button type="button" className="nft-card-button nft-card-button--secondary" onClick={onClose}>
-            취소
-          </button>
-          <button
-            type="button"
-            className="nft-card-button"
-            disabled={!selectedMyNFT}
-            onClick={handleSubmit}
-          >
-            교환 제안하기
-          </button>
-        </div>
+    <div className="nft-user-summary">
+      <div className="nft-user-summary-row">
+        <SummaryStat label="등록한 NFT" value={isLoading ? "-" : userSummary?.totalListings ?? 0} />
+        <SummaryStat label="받은 제안" value={isLoading ? "-" : userSummary?.pendingProposals ?? 0} />
+        <SummaryStat label="최근 동기화" value={isLoading ? "동기화 중" : formatTimestamp(userSummary?.lastSyncedAt)} />
       </div>
     </div>
   );
 }
 
-function EmptyState({ message, actionLabel }: { message: string; actionLabel?: string }) {
+function SummaryStat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="nft-empty-state">
-      <div className="nft-empty-icon">
-        <ArrowLeftRight size={28} />
-      </div>
-      <p>{message}</p>
-      {actionLabel && <button className="nft-card-button">{actionLabel}</button>}
+    <div className="summary-stat">
+      <p>{label}</p>
+      <strong>{value}</strong>
     </div>
   );
 }
 
-function FallbackImage(props: ImgHTMLAttributes<HTMLImageElement>) {
-  const { src, alt, ...rest } = props;
-  const [hasError, setHasError] = useState(false);
-
-  if (!src || hasError) {
-    return <div className="image-fallback">이미지 준비중</div>;
+function formatTimestamp(timestamp?: string | null) {
+  if (!timestamp) {
+    return "대기 중";
   }
-
-  return <img src={src} alt={alt} onError={() => setHasError(true)} {...rest} />;
+  const date = new Date(timestamp);
+  return `${date.getHours().toString().padStart(2, "0")}:${date
+    .getMinutes()
+    .toString()
+    .padStart(2, "0")}`;
 }

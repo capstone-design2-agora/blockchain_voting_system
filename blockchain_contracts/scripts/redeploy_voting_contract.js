@@ -243,6 +243,37 @@ async function main() {
     'REWARD_NFT'
   );
 
+  const pledgesEnv = process.env.PLEDGES || '';
+  let proposalPledges = [];
+
+  if (pledgesEnv) {
+    const pledgeGroups = pledgesEnv.split(';').map((group) => group.trim());
+    if (pledgeGroups.length !== proposals.length) {
+      console.warn(
+        `⚠ Warning: PLEDGES count (${pledgeGroups.length}) doesn't match PROPOSALS count (${proposals.length})`
+      );
+      console.warn('  Using empty pledges for mismatched candidates');
+    }
+
+    proposalPledges = pledgeGroups.map((group) =>
+      group
+        .split('|')
+        .map((pledge) => pledge.trim())
+        .filter(Boolean)
+    );
+  } else if (artifact?.contracts?.VotingWithSBT?.pledges) {
+    proposalPledges = artifact.contracts.VotingWithSBT.pledges.map((pledges) =>
+      Array.isArray(pledges) ? pledges.filter((pledge) => typeof pledge === 'string' && pledge.trim().length > 0) : []
+    );
+  }
+
+  if (proposalPledges.length > proposals.length) {
+    proposalPledges = proposalPledges.slice(0, proposals.length);
+  }
+  while (proposalPledges.length < proposals.length) {
+    proposalPledges.push([]);
+  }
+
   console.log('═══════════════════════════════════════════════════════');
   console.log('  Voting Contract Redeployment');
   console.log('═══════════════════════════════════════════════════════');
@@ -251,6 +282,10 @@ async function main() {
   console.log('Reward NFT:', rewardAddress);
   console.log('Ballot ID:', ballotId);
   console.log('Proposals:', proposals.join(', '));
+  console.log('Pledges per candidate:');
+  proposalPledges.forEach((pledges, idx) => {
+    console.log(`  ${proposals[idx]}: ${pledges.length ? pledges.join(' | ') : '(no pledges)'}`);
+  });
   console.log('═══════════════════════════════════════════════════════');
 
   const compiled = compileVotingContract();
@@ -268,6 +303,7 @@ async function main() {
     citizenAddress,
     rewardAddress,
     proposals,
+    proposalPledges,
     ballotId,
     ballotTitle,
     ballotDescription,
@@ -296,6 +332,7 @@ async function main() {
     address: receipt.contractAddress,
     abi: compiled.abi,
     proposals,
+    pledges: proposalPledges,
     ballot: {
       id: ballotId,
       title: ballotTitle,
