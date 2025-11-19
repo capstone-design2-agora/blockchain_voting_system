@@ -33,7 +33,7 @@ export function getEnv() {
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
   const resendApiKey = process.env.RESEND_API_KEY;
-  const resendFromEmail = process.env.RESEND_FROM_EMAIL;
+  const resendFromEmail = process.env.RESEND_FROM_EMAIL || "verify@blockchain-voting.store";
   const emailAllowlistRaw = process.env.EMAIL_DOMAIN_ALLOWLIST || "";
   const activePepperKeyId = (process.env.ACTIVE_HMAC_PEPPER_KEY_ID || "v1").toLowerCase();
   const verifierPrivateKey = process.env.VERIFIER_PK;

@@ -22,6 +22,7 @@ import {
 } from "../lib/web3";
 import { checkHasSBT } from "../lib/sbt";
 import useEmailVerificationStore from "../stores/emailVerificationStore";
+import { getConfig } from "../lib/config";
 
 type CandidateRecord = {
   id: number;
@@ -189,6 +190,8 @@ const RPC_VERIFICATION_ENDPOINT =
   process.env.REACT_APP_PUBLIC_RPC_URL ?? "https://<rpc-endpoint>";
 const RECENT_BLOCK_COUNT = 4;
 const BLOCK_POLL_INTERVAL_MS = 15000;
+const VOTE_BLOCK_LOOKBACK = 256;
+const VOTE_EVENT_SIGNATURE = "VoteCast(address,uint256,uint256)";
 const FALLBACK_CHAIN_PREVIEW: BlockPreview[] = [
   {
     blockNumber: 1024,
@@ -489,13 +492,44 @@ export function VotingApp() {
       if (latest == null) {
         throw new Error("Unable to determine latest block number");
       }
-      const targets: number[] = [];
-      for (let offset = RECENT_BLOCK_COUNT - 1; offset >= 0; offset -= 1) {
-        const candidate = latest - offset;
-        if (candidate >= 0) {
-          targets.push(candidate);
+
+      const votingContractAddress = getConfig().VOTING_CONTRACT_ADDRESS?.toLowerCase();
+      if (!votingContractAddress) {
+        throw new Error("Voting contract address is not configured");
+      }
+
+      const voteCastTopic = web3Instance.utils.sha3(VOTE_EVENT_SIGNATURE);
+      if (!voteCastTopic) {
+        throw new Error("Unable to derive VoteCast event topic");
+      }
+
+      const lookbackStart = Math.max(latest - VOTE_BLOCK_LOOKBACK, 0);
+      const logs = await web3Instance.eth.getPastLogs({
+        address: votingContractAddress,
+        topics: [voteCastTopic],
+        fromBlock: formatBlockParam(lookbackStart),
+        toBlock: "latest",
+      });
+
+      const voteBlocks: number[] = [];
+      for (let index = logs.length - 1; index >= 0 && voteBlocks.length < RECENT_BLOCK_COUNT; index -= 1) {
+        const blockNumber = toNumberOrNull((logs[index] as any)?.blockNumber);
+        if (blockNumber == null) {
+          continue;
+        }
+        if (!voteBlocks.includes(blockNumber)) {
+          voteBlocks.push(blockNumber);
         }
       }
+
+      if (voteBlocks.length === 0) {
+        setRecentBlocks([]);
+        setBlockFeedError("최근 투표 트랜잭션을 찾지 못했어요.");
+        setRpcUnavailable(false);
+        return;
+      }
+
+      const targets = voteBlocks.slice().reverse();
       const blocks = await Promise.all(
         targets.map((target) => web3Instance.eth.getBlock(target, false))
       );
@@ -504,12 +538,14 @@ export function VotingApp() {
           normalizeBlockPreview(block, targets[index], lastReceipt?.blockNumber)
         )
         .filter((preview): preview is BlockPreview => Boolean(preview));
+
       if (normalized.length === 0) {
-        setRecentBlocks(FALLBACK_CHAIN_PREVIEW.map((block) => ({ ...block })));
-        setBlockFeedError("블록 데이터를 받을 수 없어 샘플 체인을 표시합니다.");
+        setRecentBlocks([]);
+        setBlockFeedError("투표 트랜잭션 블록 정보를 가져오지 못했어요.");
         setRpcUnavailable(true);
         return;
       }
+
       setRecentBlocks(normalized);
       setRpcUnavailable(false);
     } catch (error) {
