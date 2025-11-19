@@ -1,74 +1,97 @@
-# NFT Trading System – Delivery Plan
+# NFT Trading System – Deposit Escrow Delivery Plan
 
-This plan derives directly from `nft-trading-system-spec.md` and splits the frontend build into incremental phases. Each phase is sized so it can be implemented, reviewed, and validated independently while still building toward the complete workflow described in the spec.
+This revision replaces the previous “approve-then-transfer” workflow with a deposit-based escrow design. Each listing/proposal now maps to an on-chain deposit that physically holds the NFT, eliminating race conditions and simplifying concurrent swaps.
 
-## Phase 1 – Access Control & Page Skeleton
-**Goal:** Replace the hard-coded mock at `/nft-exchange` with a real route guard, shared layout, and tab framework that future phases can plug into.
-- Implement route guard that checks wallet connection + SBT status; redirect to `/email-verification` with toast when missing (`Spec §3, §4, §11`).
-- Build sticky header + tab bar scaffolding with lazy tab containers (`market`, `my listings`, `incoming proposals`) and placeholder empty states (`Spec §5`).
-- Wire header buttons (`내 컬렉션 보기`, `투표하러 가기`, breadcrumb/back link) to existing routes (`Spec §4`).
-- Establish `useNFTTradingStore` in Zustand with top-level state (active tab, loading flags, user summary placeholder) and wallet-change reset handler (`Spec §9`).
-- Add Cypress/RTL smoke test covering redirects + tab switching baseline (`Spec §14`).
+## 0. Architecture Overview
+- **Smart contract** (`NFTEscrow.sol`): custodies NFTs via `depositForListing`, `depositForOffer`, and allows the relayer to `finalizeSwap` or `returnAsset`. Each deposit receives an incrementing `depositId`.
+- **Supabase**: authoritative off-chain state. `listings` and `swap_proposals` rows reference on-chain deposits (1:1) and track UI-centric metadata/status.
+- **Indexer / Worker**: listens to `Listed`, `OfferMade`, `Swapped`, `AssetReturned` events and mutates Supabase accordingly. Runs continuously (Node.js) with replay protection.
+- **Vercel Functions**: expose read APIs plus `POST /proposals/{id}/decision`, which triggers relayer transactions and orchestrates DB updates.
+- **Frontend**: interacts with both contract (for deposits) and backend (for queries/decisions), surfacing deposit statuses in tabs.
 
-## Phase 2 – Data Contracts & API Client Layer
-**Goal:** Normalize frontend types and shared fetch utilities so tabs can consume real data consistently.
-- Define shared TypeScript models for `NftToken`, `Listing`, `SwapProposal`, `UserSummary` in `frontend/src/types/nftTrading.ts` (imported by both components and API layer) (`Spec §6, §17.1`).
-- Create typed API hooks/services for `/api/nft-trading/*` endpoints with query parameter helpers (cursor pagination + filters) (`Spec §10, §17`).
-- Centralize wallet-auth headers + signature helper reused across mutations (`Spec §17`).
-- Implement loading/error state wiring in `useNFTTradingStore`, including per-tab caches and pagination cursors (`Spec §7, §9`).
-- Add unit tests (jest) for serializers + query builders to guarantee payload shape matches spec (`Spec §14`).
+## 1. Workstreams & Dependencies
+1. **Smart Contract** – Hardhat project adds `NFTEscrow` with deposit lifecycle + relayer-only admin calls.
+2. **Supabase Schema & Data Flow** – migrations for deposit-aware tables, RLS policies, and indexes.
+3. **Indexer/Relayer Worker** – long-running Node service (could live in `scripts/` or Supabase Edge Function) subscribing to RPC websockets.
+4. **API Layer** – `/api/nft-trading/*` endpoints updated for deposit model.
+5. **Frontend** – UI/UX changes to trigger contract deposits, show pending statuses, and call decision API.
+6. **Ops & Tooling** – environment variables, monitoring, fallback flows (timelock withdrawal).
 
-## Phase 3 – Market Tab Integration
-**Goal:** Turn the Market view into a functional listing browser with filters and proposal entry points.
-- Render listing cards using normalized data (owner ENS/short address, rarity badge, voting event, minted date, lock indicator) (`Spec §7.1`).
-- Implement filters: rarity multi-select, voting-event dropdown, search, owner address input, with debounced API calls and store persistence (`Spec §7.1`).
-- Disable `교환 제안` button when viewing own listing or status != ACTIVE; surface tooltip explaining reason (`Spec §7.1, §11`).
-- Show skeleton loaders, pagination “Load more”, and empty state CTA to listing composer (`Spec §5, §7.1`).
-- Instrument analytics events for filter usage + proposal initiation (Segment/custom) (`Spec §12`).
-- RTL tests covering filter state + disabled button logic (`Spec §14`).
+Each phase below highlights cross-team handoffs so the deposit escrow remains source-of-truth.
 
-## Phase 4 – Listing Management (My Listings Tab)
-**Goal:** Enable users to inspect, cancel, or review their submitted listings.
-- Fetch user listings via dedicated API call; show status chips + badge copy matching listing lifecycle (`Spec §7.2, §16.1`).
-- Implement inline actions: `교환 취소` (DELETE endpoint + optimistic UI), `상세보기` modal for swapped/cancelled listings, locked indicator referencing awaiting proposal (`Spec §7.2, §8.3`).
-- Provide CTA `NFT 등록하기` that opens listing composer entry point (placeholder until Phase 5) with contextual messaging for empty state (`Spec §7.2, §8.2`).
-- Track cancellation analytics + contract tx link handling, including pending state spinner per card (`Spec §11, §12`).
-- Add component tests around optimistic cancellation rollback + empty-state CTA.
+## Phase 0 – Foundations & Security (ALL)
+- Finalize relayer key management (HSM or Vercel env secret) + RPC provider limits.
+- Decide supported networks (e.g., Sepolia) and test wallet funding plan.
+- Document failure-handling policy (what happens if relayer is down? manual withdrawal timelock).
 
-## Phase 5 – Proposals Tab & Decision Workflow
-**Goal:** Allow listing owners to review incoming proposals and approve/reject them via modal confirmation.
-- Query proposals for listings owned by the current user (`Spec §7.3, §10`).
-- Show dual-card layout (`받을 NFT` vs `줄 NFT`) with timestamps, requester ENS/address, and optional message (`Spec §7.3`).
-- Provide filter chips for status + search by listing (`Spec §7.3`).
-- Implement `승인`/`거절` buttons that open decision modal summarizing pair + gas estimate, then call `/proposals/{id}/decision` with loading/rollback states (`Spec §8.3`).
-- Auto-refresh relevant tabs when decision completes (listing transitions to `LOCKED/SWAPPED`, proposals update) (`Spec §16`).
-- Emit analytics for approvals/rejections and log failures per spec (`Spec §12`).
-- RTL tests covering modal focus trap, status filtering, and decision happy-path.
+## Phase 1 – Contract & Tests (Blockchain)
+**Goal:** Deliver audited NFTEscrow contract + ABI.
+- Implement `struct DepositItem { address owner; address nftContract; uint256 tokenId; bool isActive; }` and `mapping(uint256 => DepositItem) deposits`.
+- Functions:
+  - `depositForListing(address nft, uint256 tokenId)`
+  - `depositForOffer(uint256 listingDepositId, address nft, uint256 tokenId)`
+  - `finalizeSwap(uint256 listingDepositId, uint256 offerDepositId)` (`onlyRelayer`)
+  - `returnAsset(uint256 depositId)` (`onlyRelayer` + optional owner timelock escape hatch)
+- Events: `Listed`, `OfferMade`, `Swapped`, `AssetReturned`.
+- Hardhat tests: reverts (double deposit, inactive listings), swap success, unauthorized access, withdrawal timelock.
+- Deploy to dev/test networks, publish addresses + ABIs to shared package.
 
-## Phase 6 – Proposal Creation & Listing Composer
-**Goal:** Let verified users list NFTs and submit swap proposals end-to-end.
-- Create shared wallet NFT picker component reused by ExchangeModal + Listing Composer (`Spec §8.1, §8.2, §13`).
-- ExchangeModal: fetch tradable NFTs, enforce disabled state for NFTs tied to pending proposals, support optional message, submit `POST /listings/{id}/proposals`, show success CTA (“View proposals”) (`Spec §8.1`).
-- Listing Composer: allow selecting NFT, optional expiry/message, submit `/nft-trading/listings` with optimistic `DRAFT → ACTIVE` transition, integrate CTA entry points from Phase 3/4 empty states (`Spec §8.2, §16.1`).
-- Handle errors (wallet mismatch, insufficient approvals) with inline messaging + link to `/my-nfts` when inventory empty (`Spec §8.1, §11`).
-- Tie pending transaction states to card buttons + etherscan link surfaces (`Spec §11`).
-- Add integration tests with MSW mocking listing creation + proposal submission flows (`Spec §14`).
+## Phase 2 – Supabase Schema & Seed Data (Backend)
+**Goal:** Persist on-chain deposits in normalized tables.
+- `listings` table columns:
+  - `id UUID`, `owner_wallet`, `nft_contract`, `token_id`, `deposit_id INT UNIQUE`, `status ENUM(DEPOSITING, ACTIVE, SWAPPED, CANCELLED, WITHDRAWING)`, `tx_hash`, metadata JSON, timestamps.
+- `swap_proposals` table columns:
+  - `id UUID`, `listing_id`, `requester_wallet`, `offered_contract`, `offered_token_id`, `deposit_id INT UNIQUE`, `status ENUM(DEPOSITING, PENDING, ACCEPTED, REJECTED, WITHDRAWING)`, `tx_hash`, message, timestamps.
+- `wallet_nonces` table for auth, plus indexes on `(status, created_at)` and `(listing_id, status)`.
+- Write Supabase functions/triggers if needed to auto-expire proposals/listings (24h TTL).
 
-## Phase 7 – Polish, Telemetry & Accessibility
-**Goal:** Ensure production readiness across UX, observability, and accessibility.
-- Finalize analytics taxonomy for all critical events (listing creation, proposal submission/decision, cancellation) and verify instrumentation (`Spec §12`).
-- Add ARIA attributes, focus traps, and live-region error announcements to all modals + forms (`Spec §11`).
-- Implement localization hooks for new Korean copy with translation keys ready for future i18n work (`Spec §11`).
-- Harden error boundaries + retry mechanisms for fetch failures and pending tx polling; ensure wallet mismatch prompt flows are covered (`Spec §11, §18`).
-- Document manual QA checklist (connect testnet wallet, run listing/proposal/decision flows) and bake into release notes (`Spec §14`).
-- Conduct accessibility + UX regression tests (keyboard nav, screen reader spot-checks) before launch.
+## Phase 3 – Event Indexer & Relayer Worker (Backend/DevOps)
+**Goal:** Populate DB from contract events and coordinate relayer txns.
+- Build Node.js worker:
+  - Subscribes to RPC websocket.
+  - On `Listed`, upsert listing row (`status=ACTIVE`, `tx_hash`, deposit metadata). No client API call required.
+  - On `OfferMade`, insert `swap_proposals` row (`status=PENDING`).
+  - On `Swapped`, mark listing `SWAPPED`, winning proposal `ACCEPTED`, others `REJECTED`.
+  - On `AssetReturned`, set status `WITHDRAWN` or revert to `ACTIVE` as needed.
+- Include retry + persistence (e.g., Redis cursor) so missed events can be replayed.
+- Relayer utilities: wrappers around ethers signer used both here and in API for `finalizeSwap`/`returnAsset`.
 
-## Phase 8 – Future Enhancements (Post-MVP backlog)
-These items are out of Phase 1–7 scope but tracked for future iterations once backend and contracts mature (`Spec §19`, `§20`).
-- Notifications pipeline (email/webhook) for proposal lifecycle updates.
-- Multi-token bundles or alternative swap models once contracts support them.
-- Service fee & gas cost visualization modules.
-- Edge cache tuning + realtime updates for listings/proposals via subscriptions.
+## Phase 4 – API Layer (Vercel)
+**Goal:** Support read flows + decision endpoint aligned with deposit model.
+- `GET /listings`, `GET /my-listings`, `GET /proposals`, `GET /me/nfts` – return Supabase rows, including `deposit_id`, `status`, metadata.
+- `POST /proposals/{id}/decision`:
+  - Wrap in DB transaction (`FOR UPDATE` on listing + proposal).
+  - Validate statuses.
+  - `APPROVE`: call relayer helper `finalizeSwap(listingDepositId, offerDepositId)`, update statuses, enqueue `returnAsset` for losing proposals.
+  - `REJECT`: call `returnAsset(offerDepositId)` and mark proposal `REJECTED`.
+  - Error handling: if contract call reverts, roll back transaction and respond with `ESCROW_FINALIZE_FAILED`.
+- Authentication: reuse existing Supabase session + wallet signature for decision endpoint (owner-only action).
+- Monitoring: structured logs include deposit IDs + tx hashes.
+
+## Phase 5 – Frontend Integration (Web)
+**Goal:** Reflect deposit lifecycle in UI and trigger contract deposits from users.
+- Wallet flow:
+  - Listing creation CTA opens modal instructing user to call `depositForListing` via ethers hook (Metamask). After tx success, user waits for backend to ingest event before listing appears as `ACTIVE`.
+  - Proposal composer similarly calls `depositForOffer(listingDepositId, ...)`. Show pending state until event ingestion.
+- Tabs:
+  - Market: show only listings with `status=ACTIVE`.
+  - My Listings: display `DEPOSITING`, `WITHDRAWING`, `SWAPPED`.
+  - Incoming Proposals: show `PENDING`, `ACCEPTED`, `REJECTED`, `WITHDRAWING`.
+- Decision modals call backend `/proposals/{id}/decision`. UI polls listing/proposal after submission to capture swap completion.
+- Empty states and tooltips updated to explain deposit requirements and timelock fallbacks.
+- Testing: MSW mocks for API + mocked ethers provider for deposit TX flows.
+
+## Phase 6 – Operations & Resilience
+- **Withdrawal watchdog**: scheduled job identifies proposals/listings stuck in `DEPOSITING` or `WITHDRAWING` longer than N minutes and alerts team.
+- **Timelock enforcement**: optional contract function enabling owner withdrawal if relayer fails for >7 days. Frontend surfaces countdown + manual instructions.
+- **Analytics**: capture deposit attempts, decision outcomes, failure reasons to Datadog/Segment.
+- **Runbooks**: document steps to restart indexer, rotate relayer keys, replay events, or manually return assets.
+
+## Phase 7 – Post-MVP Enhancements
+1. Batch deposit support (bundle trades).
+2. Notification service for deposit confirmations and swap settlement.
+3. Real-time updates via Supabase Realtime or on-chain event streaming.
+4. Fee model (protocol fee deducted on finalize).
 
 ---
-Each phase should conclude with code review, analytics validation, and at least one automated/regression test pass before proceeding. Dependencies (API availability, contract ABI, wallet signature format) must be confirmed with backend counterparts at kickoff of each phase.
+Each phase finishes with code review + automated tests (Hardhat, Jest/RTL, integration) before moving forward. Dependencies must be satisfied sequentially: contract → schema → indexer → API → frontend. Continuous monitoring ensures on-chain deposits and off-chain state never drift.

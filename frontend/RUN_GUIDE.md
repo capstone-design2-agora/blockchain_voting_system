@@ -3,7 +3,7 @@
 ## 0. 사전 준비
 1. 루트 디렉터리에서 `./blockchain_contracts/setup_and_deploy.sh`를 실행합니다.
    - GoQuorum 네트워크가 부팅되고 컨트랙트가 배포됩니다.
-   - `frontend/.env`, `.env.local`, `.env.example`이 자동으로 최신 값으로 채워집니다.
+   - `frontend/.env.local`, `.env.example`이 자동으로 최신 값으로 채워집니다.
    - ABI(`frontend/src/abi/Voting.json`)도 동기화됩니다.
 2. 환경 파일을 직접 수정하고 싶은 경우:
    ```bash

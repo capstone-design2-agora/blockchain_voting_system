@@ -4,6 +4,7 @@ import EmailVerificationPage from "./pages/EmailVerificationPage";
 import { VotingApp } from "./pages/VotingApp";
 import MyNFTsPage from "./pages/MyNFTsPage";
 import NFTExchangePage from "./pages/NFTExchangePage";
+import AdminDeployPage from "./pages/AdminDeployPage";
 import { ToastProvider } from "./components/ToastProvider";
 import "./App.css";
 import { loadConfig } from "./lib/config";
@@ -55,6 +56,7 @@ export default function App() {
           {/* NFT 거래소 페이지 */}
           <Route path="/nft-exchange" element={<NFTExchangePage />} />
 
+          <Route path="/admin/deploy" element={<AdminDeployPage />} />
           {/* 알 수 없는 경로는 이메일 인증 페이지로 리다이렉트 */}
           <Route path="*" element={<Navigate to="/email-verification" replace />} />
         </Routes>

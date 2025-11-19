@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import { formatEther, formatUnits } from "ethers";
 import type { TransactionReceipt } from "web3-types";
 import {
   calculateTurnout,
@@ -34,13 +33,16 @@ type CandidateRecord = {
   pledges?: string[];
 };
 
+const SELECTED_CANDIDATE_ACCENT =
+  "linear-gradient(135deg, #322e81, #7c3aed)";
+
 const DEFAULT_FALLBACK_CANDIDATES: CandidateRecord[] = [
   {
     id: 0,
     name: "Alice",
     votes: 328,
     description: "투명한 예산 집행과 실시간 공개를 약속합니다.",
-    accent: "linear-gradient(135deg, #1f3c88, #4c6ef5)",
+    accent: "linear-gradient(135deg, #1e293b, #475569)",
     icon: "✨",
     pledges: [
       "예산 집행 내역을 블록체인으로 즉시 공개",
@@ -53,7 +55,7 @@ const DEFAULT_FALLBACK_CANDIDATES: CandidateRecord[] = [
     name: "Bob",
     votes: 287,
     description: "거버넌스 참여자를 위해 UX를 혁신합니다.",
-    accent: "linear-gradient(135deg, #322e81, #7c3aed)",
+    accent: "linear-gradient(135deg, #1e293b, #475569)",
     icon: "🚀",
     pledges: [
       "모바일 전용 거버넌스 인터페이스 도입",
@@ -156,6 +158,7 @@ type NormalizedReceipt = {
   gasUsed: string;
   effectiveGasPrice: string;
   confirmations: number;
+  fromAddress: string | null;
 };
 
 type StoredVotePayload = {
@@ -185,9 +188,6 @@ type BlockPreview = {
 const LAST_VOTE_STORAGE_KEY = "agora:lastVote:v1";
 const LAST_VOTE_STORAGE_VERSION = 1;
 const OPTIMISTIC_REFRESH_DELAY_MS = 2500;
-const EXPLORER_TEMPLATE = process.env.REACT_APP_EXPLORER_TX_TEMPLATE ?? "";
-const RPC_VERIFICATION_ENDPOINT =
-  process.env.REACT_APP_PUBLIC_RPC_URL ?? "https://<rpc-endpoint>";
 const RECENT_BLOCK_COUNT = 4;
 const BLOCK_POLL_INTERVAL_MS = 15000;
 const VOTE_BLOCK_LOOKBACK = 256;
@@ -226,6 +226,7 @@ const FALLBACK_CHAIN_PREVIEW: BlockPreview[] = [
     isVoteBlock: false,
   },
 ];
+const DEMO_ADDRESS_BASE = "abc000000000000000000000000000000000000";
 
 const FALLBACK_BALLOTS: BallotMeta[] = [
   {
@@ -298,6 +299,7 @@ export function VotingApp() {
   const [blockLoading, setBlockLoading] = useState<boolean>(false);
   const [blockError, setBlockError] = useState<string | null>(null);
   const [copyFeedback, setCopyFeedback] = useState<string>("");
+  const [choiceRevealed, setChoiceRevealed] = useState<boolean>(false);
   const [recentBlocks, setRecentBlocks] = useState<BlockPreview[]>(() =>
     FALLBACK_CHAIN_PREVIEW.map((block) => ({ ...block }))
   );
@@ -328,14 +330,6 @@ export function VotingApp() {
       ),
     []
   );
-  const explorerTxUrl = useMemo(() => {
-    if (!lastReceipt?.transactionHash || !EXPLORER_TEMPLATE) {
-      return "";
-    }
-    return EXPLORER_TEMPLATE.includes("%s")
-      ? EXPLORER_TEMPLATE.replace("%s", lastReceipt.transactionHash)
-      : `${EXPLORER_TEMPLATE}${lastReceipt.transactionHash}`;
-  }, [lastReceipt]);
   const canOpenReceiptModal = useMemo(
     () =>
       Boolean(
@@ -346,48 +340,6 @@ export function VotingApp() {
       ),
     [demoMode, lastReceipt, rpcUnavailable, userHasVoted, walletConnected]
   );
-  const receiptCostSummary = useMemo(() => {
-    if (!lastReceipt) {
-      return {
-        totalWei: "0",
-        totalEth: "0",
-        gasPriceGwei: "0",
-        gasUsed: "0",
-      };
-    }
-    try {
-      const gasUsedValue = BigInt(lastReceipt.gasUsed || "0x0");
-      const gasPriceValue = BigInt(lastReceipt.effectiveGasPrice || "0x0");
-      const totalWei = (gasUsedValue * gasPriceValue).toString();
-      const gasPriceGwei = formatUnits(lastReceipt.effectiveGasPrice || "0", "gwei");
-      return {
-        totalWei,
-        totalEth: formatEther(totalWei),
-        gasPriceGwei,
-        gasUsed: gasUsedValue.toString(),
-      };
-    } catch (error) {
-      console.warn("Failed to derive gas summary", error);
-      return {
-        totalWei: "0",
-        totalEth: "0",
-        gasPriceGwei: "0",
-        gasUsed: "0",
-      };
-    }
-  }, [lastReceipt]);
-  const rpcSnippets = useMemo(() => {
-    const txHash = lastReceipt?.transactionHash ?? "0x0";
-    const blockParam = formatBlockParam(lastReceipt?.blockNumber);
-    const receiptPayload = `{"jsonrpc":"2.0","id":1,"method":"eth_getTransactionReceipt","params":["${txHash}"]}`;
-    const blockPayload = `{"jsonrpc":"2.0","id":2,"method":"eth_getBlockByNumber","params":["${blockParam}",false]}`;
-    return {
-      curlReceipt: `curl -X POST ${RPC_VERIFICATION_ENDPOINT} \\\n+  -H 'Content-Type: application/json' \\\n+  -d '${receiptPayload}'`,
-      curlBlock: `curl -X POST ${RPC_VERIFICATION_ENDPOINT} \\\n+  -H 'Content-Type: application/json' \\\n+  -d '${blockPayload}'`,
-      jsReceipt: `const receipt = await window.ethereum.request({\n  method: 'eth_getTransactionReceipt',\n  params: ['${txHash}'],\n});`,
-      jsBlock: `const block = await window.ethereum.request({\n  method: 'eth_getBlockByNumber',\n  params: ['${blockParam}', false],\n});`,
-    };
-  }, [lastReceipt]);
   const blockNumberForDisplay =
     blockDetails?.blockNumber ?? lastReceipt?.blockNumber ?? null;
   const blockTimestampLabel = blockDetails?.timestampLabel ??
@@ -398,22 +350,12 @@ export function VotingApp() {
       : blockLoading
         ? "확인 중"
         : "-";
+  const blockHashValue = blockDetails?.hash && blockDetails.hash.length > 0
+    ? blockDetails.hash
+    : null;
+  const blockHashLabel = blockHashValue ?? (blockLoading ? "확인 중" : "-");
   const modalTitleId = "vote-receipt-modal-title";
   const modalDescriptionId = "vote-receipt-modal-description";
-  const totalEthDisplay = useMemo(() => {
-    const numeric = Number(receiptCostSummary.totalEth);
-    if (Number.isFinite(numeric) && numeric > 0) {
-      return `${numeric.toPrecision(4)} ETH`;
-    }
-    return `${receiptCostSummary.totalEth} ETH`;
-  }, [receiptCostSummary.totalEth]);
-  const gasUsedDisplay = useMemo(() => {
-    const numeric = Number(receiptCostSummary.gasUsed);
-    if (Number.isFinite(numeric)) {
-      return numeric.toLocaleString("ko-KR");
-    }
-    return receiptCostSummary.gasUsed;
-  }, [receiptCostSummary.gasUsed]);
   const closeReceiptModal = useCallback(() => {
     setReceiptModalOpen(false);
   }, []);
@@ -423,6 +365,7 @@ export function VotingApp() {
       return;
     }
     setBlockError(null);
+    setChoiceRevealed(false);
     setReceiptModalOpen(true);
   }, [lastReceipt, setStatus]);
   const handleCopyToClipboard = useCallback((value: string, label: string) => {
@@ -1247,8 +1190,12 @@ export function VotingApp() {
             return (
               <article
                 key={candidate.name}
-                className={`candidate-card ${isWinner ? 'candidate-card--winner' : ''} ${isMyVoteCandidate ? 'candidate-card--selected' : ''}`}
-                style={{ backgroundImage: candidate.accent }}
+                className={`candidate-card ${isWinner ? "candidate-card--winner" : ""} ${isMyVoteCandidate ? "candidate-card--selected" : ""}`}
+                style={{
+                  backgroundImage: isMyVoteCandidate
+                    ? SELECTED_CANDIDATE_ACCENT
+                    : candidate.accent,
+                }}
               >
                 <header>
                   <span className="candidate-icon">{candidate.icon}</span>
@@ -1403,7 +1350,7 @@ export function VotingApp() {
                   </h3>
                   <p id={modalDescriptionId} className="vote-modal__description">
                     {lastCandidateName
-                      ? `${lastCandidateName} 후보에게 기록된 표입니다.`
+                      ? "선택한 후보는 아래 버튼을 눌러야만 표시돼요."
                       : "이 트랜잭션은 영구적으로 블록체인에 저장됐어요."}
                   </p>
                 </div>
@@ -1415,6 +1362,36 @@ export function VotingApp() {
                   닫기
                 </button>
               </header>
+
+              <section className="vote-modal__section">
+                <div className="vote-modal__grid">
+                  <div className="vote-modal__cell">
+                    <span className="vote-modal__label">트랜잭션 성공 여부</span>
+                    <strong>{lastReceipt.statusLabel}</strong>
+                  </div>
+                  <div className="vote-modal__cell">
+                    <span className="vote-modal__label">누구에게 투표했나요?</span>
+                    {lastCandidateName ? (
+                      choiceRevealed ? (
+                        <strong>{lastCandidateName}</strong>
+                      ) : (
+                        <button
+                          type="button"
+                          className="vote-modal__reveal-button"
+                          onClick={() => setChoiceRevealed(true)}
+                        >
+                          후보 정보 보기
+                        </button>
+                      )
+                    ) : (
+                      <strong>확인 불가</strong>
+                    )}
+                    {lastCandidateName && !choiceRevealed && (
+                      <p className="vote-modal__hint">버튼을 눌러야만 내 선택이 드러나요.</p>
+                    )}
+                  </div>
+                </div>
+              </section>
 
               <section className="vote-modal__section">
                 <div className="vote-modal__row">
@@ -1430,17 +1407,26 @@ export function VotingApp() {
                     >
                       복사
                     </button>
-                    {explorerTxUrl && (
-                      <a
-                        className="vote-modal__explorer"
-                        href={explorerTxUrl}
-                        target="_blank"
-                        rel="noreferrer noopener"
-                      >
-                        익스플로러에서 열기
-                      </a>
-                    )}
                   </div>
+                </div>
+                <div className="vote-modal__row">
+                  <div>
+                    <span className="vote-modal__label">트랜잭션 보낸 지갑 주소</span>
+                    <code className="vote-modal__code">
+                      {lastReceipt.fromAddress ?? "확인 중"}
+                    </code>
+                  </div>
+                  {lastReceipt.fromAddress && (
+                    <div className="vote-modal__row-actions">
+                      <button
+                        type="button"
+                        className="copy-button"
+                        onClick={() => handleCopyToClipboard(lastReceipt.fromAddress ?? "", "보낸 지갑 주소")}
+                      >
+                        복사
+                      </button>
+                    </div>
+                  )}
                 </div>
               </section>
 
@@ -1473,6 +1459,25 @@ export function VotingApp() {
                           : `${blockTxCountLabel}건`}
                     </strong>
                   </div>
+                  <div className="vote-modal__cell">
+                    <span className="vote-modal__label">블록 해시</span>
+                    {blockHashValue ? (
+                      <>
+                        <code className="vote-modal__code">{blockHashValue}</code>
+                        <div className="vote-modal__row-actions vote-modal__row-actions--stacked">
+                          <button
+                            type="button"
+                            className="copy-button"
+                            onClick={() => handleCopyToClipboard(blockHashValue, "블록 해시")}
+                          >
+                            복사
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <strong>{blockHashLabel}</strong>
+                    )}
+                  </div>
                 </div>
                 {blockLoading && (
                   <p className="vote-modal__hint">블록 정보를 불러오는 중…</p>
@@ -1486,58 +1491,6 @@ export function VotingApp() {
                   </div>
                 )}
               </section>
-
-              <section className="vote-modal__section">
-                <h4>가스 사용 요약</h4>
-                <ul className="vote-modal__list">
-                  <li>
-                    <span>Gas Used</span>
-                    <strong>{gasUsedDisplay} 단위</strong>
-                  </li>
-                  <li>
-                    <span>Effective Gas Price</span>
-                    <strong>{receiptCostSummary.gasPriceGwei} Gwei</strong>
-                  </li>
-                  <li>
-                    <span>총 비용</span>
-                    <strong>{totalEthDisplay}</strong>
-                  </li>
-                </ul>
-              </section>
-
-              <section className="vote-modal__section">
-                <h4>RPC로 직접 검증하기</h4>
-                <p className="vote-modal__hint">
-                  RPC 엔드포인트: <code className="vote-modal__code-inline">{RPC_VERIFICATION_ENDPOINT}</code>
-                </p>
-                <p className="vote-modal__hint">
-                  아래 명령어를 실행하면 지갑 UI 없이도 동일한 결과를 확인할 수 있어요.
-                </p>
-                <div className="vote-modal__code-block">
-                  <strong>curl &ndash; Receipt</strong>
-                  <pre>{rpcSnippets.curlReceipt}</pre>
-                </div>
-                <div className="vote-modal__code-block">
-                  <strong>curl &ndash; Block</strong>
-                  <pre>{rpcSnippets.curlBlock}</pre>
-                </div>
-                <div className="vote-modal__code-block">
-                  <strong>JavaScript</strong>
-                  <pre>{`${rpcSnippets.jsReceipt}\n${rpcSnippets.jsBlock}`}</pre>
-                </div>
-              </section>
-
-              {explorerTxUrl && (
-                <section className="vote-modal__section vote-modal__qr">
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
-                      explorerTxUrl
-                    )}`}
-                    alt="트랜잭션 해시를 열 수 있는 QR 코드"
-                  />
-                  <p>모바일에서 스캔하면 같은 정보를 바로 확인할 수 있어요.</p>
-                </section>
-              )}
 
               {copyFeedback && (
                 <p className="sr-only" role="status" aria-live="polite">
@@ -1694,6 +1647,7 @@ function normalizeReceipt(receipt: TransactionReceipt): NormalizedReceipt {
   const transactionHash = toHashString(receipt.transactionHash);
   const blockNumber = toNumberOrNull(receipt.blockNumber);
   const isSuccess = coerceStatus(receipt.status);
+  const fromAddress = toHashString((receipt as any)?.from);
   return {
     statusLabel: isSuccess ? "성공" : "실패",
     displayHash: formatHashForDisplay(transactionHash),
@@ -1702,6 +1656,7 @@ function normalizeReceipt(receipt: TransactionReceipt): NormalizedReceipt {
     gasUsed: gasUsedValue,
     effectiveGasPrice: effectiveGasPriceValue,
     confirmations: 0,
+    fromAddress: fromAddress || null,
   };
 }
 
@@ -1720,6 +1675,9 @@ function createDemoReceipt(seed: number): NormalizedReceipt {
   const txHash = `0xdemo${seed.toString(16).padStart(2, "0")}000000000000000000000000000000000000000000000000000000000000`;
   const gasUsed = (21000 + seed * 10).toString();
   const gasPrice = (2_000_000_000 + seed * 1_000_000).toString();
+  const normalizedSeed = Math.abs(seed) % 0xfffffff;
+  const seedHex = normalizedSeed.toString(16).padStart(8, "0");
+  const fromAddress = `0x${(DEMO_ADDRESS_BASE + seedHex).slice(-40)}`;
   return {
     statusLabel: "성공 (Demo)",
     displayHash: formatHashForDisplay(txHash),
@@ -1728,6 +1686,7 @@ function createDemoReceipt(seed: number): NormalizedReceipt {
     gasUsed,
     effectiveGasPrice: gasPrice,
     confirmations: 0,
+    fromAddress,
   };
 }
 

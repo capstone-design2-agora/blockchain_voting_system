@@ -307,8 +307,8 @@
 
 .nft-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 20px;
 }
 
 .nft-card {
@@ -320,6 +320,9 @@
   flex-direction: column;
   backdrop-filter: blur(10px);
   transition: transform 0.25s ease, border 0.25s ease;
+  max-width: 210px;
+  width: 100%;
+  margin: 0 auto;
 }
 
 .nft-card:hover {

@@ -146,6 +146,18 @@ blockchain_contracts/
 └── deploy.env.example           # 배포 환경 설정 템플릿
 ```
 
+## 🚀 Admin 배포 구성 분리
+
+배포 UI를 운영하기 위해 선거별 ballot config, 템플릿 엔진, 민감한 시크릿을 명확하게 분리합니다.
+
+| 구분 | 위치 | 접근 주체 |
+| --- | --- | --- |
+| `BallotConfig` (title, schedule, proposals 등) | `blockchain_contracts/deploy.templates.env` + 프론트에서 렌더링 후 `blockchain_contracts/tmp/deploy-<uuid>.env` | React admin 페이지와 backend runner (Vercel 함수) |
+| 민감 환경 변수 (Verifer 키, RPC, Supabase 등) | 배포 환경 (`process.env`) | 운영 서버 또는 Vercel 시크릿, 프론트에서 노출 없음 |
+| 배포 기록 및 로그 | `artifacts/admin-history/*.json` / `.log` (Git-tracked 제외) | 내부 기록/감사 및 UI prefill |
+
+이 구조 덕분에 `/api/internal/deploy` 같은 보호된 엔드포인트만 UI에서 새 ballot 설정을 제출할 수 있고, 장기 시크릿은 절대 클라이언트에 전달되지 않습니다.
+
 #### 스마트 컨트랙트 상세 설명
 
 ##### 2.1 CitizenSBT.sol - 신원 검증
@@ -989,7 +1001,7 @@ docker-compose up -d
 cat frontend/.env.local
 
 # 2. RPC 연결 테스트
-curl http://localhost:10545
+curl http://localhost:9545
 
 # 3. MetaMask 설정 확인
 # - RPC: http://localhost:10545
