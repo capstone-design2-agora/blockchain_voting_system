@@ -1,11 +1,11 @@
 import { z } from "zod";
 import { JsonRpcProvider } from "ethers";
-import { getEnv } from "./_lib/env.js";
-import { getSupabaseClient } from "./_lib/supabase.js";
-import { normalizeWalletAddress, createLookupHmac } from "./_lib/crypto.js";
-import { bufferToPgBytea, hexToBuffer } from "./_lib/bytea.js";
-import { readJsonBody } from "./_lib/request.js";
-import { ValidationError, HttpError } from "./_lib/errors.js";
+import { getEnv } from "../api-lib/env.js";
+import { getSupabaseClient } from "../api-lib/supabase.js";
+import { normalizeWalletAddress, createLookupHmac } from "../api-lib/crypto.js";
+import { bufferToPgBytea, hexToBuffer } from "../api-lib/bytea.js";
+import { readJsonBody } from "../api-lib/request.js";
+import { ValidationError, HttpError } from "../api-lib/errors.js";
 
 const env = getEnv();
 const provider = new JsonRpcProvider(env.rpcUrl);

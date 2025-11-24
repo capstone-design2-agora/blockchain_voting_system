@@ -1,8 +1,8 @@
 import crypto from "node:crypto";
 import { z } from "zod";
 import { Wallet, solidityPackedKeccak256 } from "ethers";
-import { getEnv } from "./_lib/env.js";
-import { getSupabaseClient } from "./_lib/supabase.js";
+import { getEnv } from "../api-lib/env.js";
+import { getSupabaseClient } from "../api-lib/supabase.js";
 import {
   normalizeEmail,
   normalizeWalletAddress,
@@ -13,9 +13,9 @@ import {
   encryptRetryPayload,
   nonceToBytes32
 } from "./_lib/crypto.js";
-import { bufferToPgBytea, pgByteaToBuffer, bufferToHex, hexToBuffer } from "./_lib/bytea.js";
-import { readJsonBody } from "./_lib/request.js";
-import { ValidationError, HttpError } from "./_lib/errors.js";
+import { bufferToPgBytea, pgByteaToBuffer, bufferToHex, hexToBuffer } from "../api-lib/bytea.js";
+import { readJsonBody } from "../api-lib/request.js";
+import { ValidationError, HttpError } from "../api-lib/errors.js";
 
 const env = getEnv();
 const signer = new Wallet(env.verifierPrivateKey);
