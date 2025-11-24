@@ -100,6 +100,25 @@ echo ""
 
 node "${SCRIPT_DIR}/deploy_sbt_system.js"
 
+# NFTEscrow 배포 (없을 때만)
+if [ -z "${ESCROW_ADDRESS:-}" ]; then
+    echo ""
+    echo "🚀 NFTEscrow 배포 시도 (ESCROW_ADDRESS 미지정)"
+    if node "${SCRIPT_DIR}/deploy_escrow.js"; then
+        if [ -f "artifacts/NFTEscrow.deployment.json" ]; then
+            ESCROW_ADDRESS=$(node -pe "JSON.parse(require('fs').readFileSync('artifacts/NFTEscrow.deployment.json', 'utf8')).address")
+            echo "✅ NFTEscrow 배포 완료: $ESCROW_ADDRESS"
+        else
+            echo "⚠️ NFTEscrow.deployment.json을 찾을 수 없습니다. 배포 결과를 확인하세요."
+        fi
+    else
+        echo "⚠️ NFTEscrow 배포 실패 (계속 진행하지만 프런트 설정은 채워지지 않습니다)"
+    fi
+else
+    echo ""
+    echo "ℹ️ ESCROW_ADDRESS가 이미 설정되어 있어 NFTEscrow를 재배포하지 않습니다: $ESCROW_ADDRESS"
+fi
+
 if [ $? -eq 0 ]; then
     echo ""
     echo "========================================"
@@ -144,7 +163,9 @@ if [ $? -eq 0 ]; then
         REWARD_NFT=$(node -pe "JSON.parse(require('fs').readFileSync('artifacts/sbt_deployment.json', 'utf8')).contracts.VotingRewardNFT.address")
         VOTING_CONTRACT=$(node -pe "JSON.parse(require('fs').readFileSync('artifacts/sbt_deployment.json', 'utf8')).contracts.VotingWithSBT.address")
         VERIFIER=$(node -pe "JSON.parse(require('fs').readFileSync('artifacts/sbt_deployment.json', 'utf8')).contracts.CitizenSBT.verifier")
-        ESCROW_ADDRESS=$(node -pe "try { JSON.parse(require('fs').readFileSync('artifacts/NFTEscrow.deployment.json', 'utf8')).address } catch(e) { '' }")
+        if [ -z "${ESCROW_ADDRESS:-}" ]; then
+            ESCROW_ADDRESS=$(node -pe "try { JSON.parse(require('fs').readFileSync('artifacts/NFTEscrow.deployment.json', 'utf8')).address } catch(e) { '' }")
+        fi
         
         echo ""
         echo "📍 배포된 컨트랙트 주소:"
