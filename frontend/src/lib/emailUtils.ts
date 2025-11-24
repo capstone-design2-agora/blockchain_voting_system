@@ -56,9 +56,7 @@ export function getDomainHint(email: string, allowedDomains: string[]): string |
   if (!email || email.indexOf('@') === -1) {
     return null;
   }
-  
-  const currentDomain = extractDomain(email);
-  
+
   // 이미 허용된 도메인이면 힌트 불필요
   if (isDomainAllowed(email, allowedDomains)) {
     return null;

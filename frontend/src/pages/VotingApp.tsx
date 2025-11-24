@@ -792,7 +792,7 @@ export function VotingApp() {
       document.removeEventListener("keydown", handleKeyDown);
       previouslyFocused?.focus?.();
     };
-  }, [receiptModalOpen]);
+  }, [receiptModalOpen, closeReceiptModal]);
 
   useEffect(() => {
     if (!receiptModalOpen) {
