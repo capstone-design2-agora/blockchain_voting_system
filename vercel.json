@@ -8,7 +8,11 @@
       }
     },
     {
-      "src": "api/**/*.js",
+      "src": "api/*.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/nft-trading/*.js",
       "use": "@vercel/node"
     }
   ],
