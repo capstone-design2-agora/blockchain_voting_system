@@ -1,6 +1,8 @@
-import { getAddress } from "ethers";
+import { getAddress, JsonRpcProvider } from "ethers";
 import { normalizeWalletAddress } from "../_lib/crypto.js";
 import { HttpError, UnauthorizedError, ValidationError } from "../_lib/errors.js";
+
+let cachedProvider;
 
 export function applyCors(req, res, methods = ["GET", "POST", "OPTIONS"]) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -69,4 +71,49 @@ export function ensureOwner(ownerWallet, requesterWallet) {
   if (ownerWallet?.toLowerCase() !== requesterWallet.toLowerCase()) {
     throw new HttpError("NOT_OWNER", { status: 403, code: "NOT_OWNER" });
   }
+}
+
+export function getEscrowConfig() {
+  const addr = process.env.ESCROW_ADDRESS || process.env.REACT_APP_ESCROW_ADDRESS;
+  const rpcUrl = process.env.RPC_WS_URL || process.env.RPC_URL;
+  if (!addr) {
+    throw new Error("ESCROW_ADDRESS is required for on-chain validation");
+  }
+  if (!rpcUrl) {
+    throw new Error("RPC_URL or RPC_WS_URL is required for on-chain validation");
+  }
+  return { escrowAddress: getAddress(addr).toLowerCase(), rpcUrl };
+}
+
+export function getRpcProvider() {
+  if (cachedProvider) return cachedProvider;
+  const { rpcUrl } = getEscrowConfig();
+  cachedProvider = new JsonRpcProvider(rpcUrl);
+  return cachedProvider;
+}
+
+export async function assertTxForEscrow({ txHash, expectedFrom }) {
+  const { escrowAddress } = getEscrowConfig();
+  const provider = getRpcProvider();
+
+  const tx = await provider.getTransaction(txHash);
+  if (!tx) {
+    throw new HttpError("Transaction not found", { status: 404, code: "TX_NOT_FOUND" });
+  }
+  if (!tx.to || tx.to.toLowerCase() !== escrowAddress) {
+    throw new HttpError("TX_TO_MISMATCH", { status: 400, code: "TX_TO_MISMATCH" });
+  }
+  if (!tx.blockNumber) {
+    throw new HttpError("Transaction not mined", { status: 409, code: "TX_NOT_MINED" });
+  }
+  if (expectedFrom && tx.from?.toLowerCase() !== expectedFrom.toLowerCase()) {
+    throw new HttpError("TX_SENDER_MISMATCH", { status: 403, code: "TX_SENDER_MISMATCH" });
+  }
+
+  const receipt = await provider.getTransactionReceipt(txHash);
+  if (!receipt || receipt.status !== 1) {
+    throw new HttpError("On-chain revert", { status: 502, code: "ONCHAIN_REVERT" });
+  }
+
+  return { tx, receipt };
 }

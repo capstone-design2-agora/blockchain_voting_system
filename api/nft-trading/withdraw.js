@@ -2,11 +2,11 @@ import { z } from "zod";
 import { getSupabaseClient } from "../_lib/supabase.js";
 import { enforceRateLimit } from "../_lib/rate-limit.js";
 import { HttpError, RateLimitError, ValidationError } from "../_lib/errors.js";
-import { applyCors, ensureOwner, normalizeTxHash, normalizeWalletHeader } from "./_lib.js";
+import { applyCors, assertTxForEscrow, ensureOwner, normalizeTxHash, normalizeWalletHeader } from "./_lib.js";
 
 const schema = z.object({
   depositId: z.coerce.number().int().positive(),
-  txHash: z.string().optional()
+  txHash: z.string().min(1)
 });
 
 export default async function handler(req, res) {
@@ -41,7 +41,9 @@ export default async function handler(req, res) {
       throw new HttpError("Inactive deposit", { status: 409, code: "INACTIVE_DEPOSIT" });
     }
 
-    const txHash = normalizeTxHash(parsed.txHash);
+    const txHash = normalizeTxHash(parsed.txHash, "txHash");
+    await assertTxForEscrow({ txHash, expectedFrom: requester });
+
     const { error: updateError } = await supabase
       .from("deposits")
       .update({ status: "WITHDRAWN", tx_hash: txHash || data.tx_hash })

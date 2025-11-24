@@ -5,6 +5,7 @@ import { HttpError, RateLimitError, ValidationError } from "../_lib/errors.js";
 import {
   applyCors,
   ensureOwner,
+  assertTxForEscrow,
   normalizeTxHash,
   normalizeWalletHeader,
   toDbWallet
@@ -13,7 +14,7 @@ import {
 const schema = z.object({
   myDepositId: z.coerce.number().int().positive(),
   targetDepositId: z.coerce.number().int().positive(),
-  txHash: z.string().optional()
+  txHash: z.string().min(1)
 });
 
 export default async function handler(req, res) {
@@ -60,7 +61,9 @@ export default async function handler(req, res) {
 
     const initiator = toDbWallet(requester);
     const counterparty = toDbWallet(targetDeposit.owner_wallet);
-    const txHash = normalizeTxHash(parsed.txHash);
+    const txHash = normalizeTxHash(parsed.txHash, "txHash");
+
+    await assertTxForEscrow({ txHash, expectedFrom: requester });
 
     // Update owners to reflect swap (best-effort; assumes on-chain swap succeeded)
     const { error: upsertError } = await supabase.from("deposits").upsert(
