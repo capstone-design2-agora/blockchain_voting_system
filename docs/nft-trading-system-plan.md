@@ -20,7 +20,7 @@ This document supersedes the older proposal/decision/relayer-heavy plan. We are 
 ## Remaining Work (MVP scope)
 1) ✅ **Apply DB migration** and verify RLS with real JWT claims; seed minimal data if needed. Helper: `supabase/tests/nft_trading_rls_checks.sql` (SQL Editor/psql) to assert anon/auth/owner behaviors.
 2) **Indexer validation** on target RPC + Supabase; confirm cursor replay and event upserts. Run `npm run indexer:escrow` (adds cursor under `.cache/escrow_cursor.json`); verify `deposits/swap_events` updating alongside on-chain actions.
-3) **API ↔ on-chain flow**: optionally add relayer or require client-signed tx + tx hash propagation.
+3) ✅ **API ↔ on-chain flow**: client-signed tx + `txHash` required; server validates on-chain against `ESCROW_ADDRESS` (to, from, mined, status).
 4) **Frontend UX**: replace test panel with user flow (connect wallet → deposit tx → POST metadata → list/swap/withdraw with polling + toasts).
 5) **Ops**: capture deployed ESCROW address in config/env, document runbooks (indexer start/restart, cursor path).
 
