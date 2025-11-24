@@ -227,10 +227,12 @@ async function main() {
     writeCursor(log.blockNumber);
   });
 
-  provider.on("close", (code) => {
-    console.error("WebSocket closed", code);
-    process.exit(1);
-  });
+  if (provider._ws?.on) {
+    provider._ws.on("close", (code) => {
+      console.error("WebSocket closed", code);
+      process.exit(1);
+    });
+  }
 }
 
 main().catch((err) => {
