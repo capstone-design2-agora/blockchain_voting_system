@@ -45,7 +45,8 @@ function loadAbi() {
 
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) {
-      return JSON.parse(fs.readFileSync(candidate, "utf8")).abi;
+      const parsed = JSON.parse(fs.readFileSync(candidate, "utf8"));
+      return parsed.abi || parsed; // frontend copy is raw ABI array
     }
   }
 
