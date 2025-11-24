@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import useEmailVerificationStore from '../../stores/emailVerificationStore';
 import { EmailVerificationAPI } from '../../lib/emailVerificationApi';
