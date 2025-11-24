@@ -8,7 +8,7 @@ This document defines a minimal “deposit pool + instant swap” workflow. It r
 - Backend: `/api/nft-trading/deposits` (GET/POST), `/api/nft-trading/swap`, `/api/nft-trading/withdraw` scaffolded with basic validation, rate limiting, and Supabase writes. No on-chain relayer yet; assumes tx already mined.
 - Supabase: `20251113_nft_trading.sql` added with `deposits`/`swap_events` tables, indexes, updated_at trigger, and RLS (service role full access; public reads ACTIVE deposits; owners read/update via wallet claim). Not yet applied to DB in this repo state.
 - Indexer: `scripts/nft-escrow-indexer.js` added (WS listener, catch-up from cursor/START_BLOCK) mirroring Deposited/Swapped/Withdrawn into Supabase and persisting cursor under `.cache/escrow_cursor.json`.
-- Frontend: `/nft-exchange`에 Escrow API 테스트 패널 추가(`NFTEscrowPanel`)로 deposit 메타데이터 등록, swap/withdraw 기록, ACTIVE 목록 조회를 UI에서 호출 가능. 본격 UI/UX는 여전히 미구현.
+- Frontend: `/nft-exchange`에 Escrow API 테스트 패널 추가(`NFTEscrowPanel`)로 deposit 메타데이터 등록, swap/withdraw 기록, ACTIVE 목록 조회를 UI에서 호출 가능. 10초 폴링 + 수동 새로고침. 본격 UI/UX는 여전히 미구현.
 - Ops: No envs/keys set for escrow; no ABI synced to frontend.
 
 ## 1) Smart Contract (`NFTEscrow`)
@@ -84,7 +84,7 @@ This document defines a minimal “deposit pool + instant swap” workflow. It r
 4. **API skeleton**: add `/api/nft-trading/deposits/index.ts` (GET/POST), `/api/nft-trading/swap.ts`, `/api/nft-trading/withdraw.ts`; shared auth/validation helpers; wire env vars. ✅ Added JS handlers with CORS, zod validation, wallet header checks, rate limit, and Supabase writes. Still missing contract calls/relayer.
 5. **Indexer worker**: add `scripts/nft-indexer.ts` (WS subscribe, Supabase upsert, cursor persistence). ✅ Added as `scripts/nft-escrow-indexer.js` (ESM). Env: `RPC_WS_URL`, `ESCROW_ADDRESS`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, optional `START_BLOCK`/`CURSOR_PATH`. Assumes on-chain tx mined; no relayer.
 6. **Frontend integration**: extend `frontend/src/lib/nftTradingApi.ts`; implement minimal deposit/swap/withdraw UI on `/nft-exchange`; add polling after writes. 🏗️ Added `NFTEscrowPanel` (manual forms for deposits/swap/withdraw/list) + `nftEscrowApi.ts`; still need polished UX and on-chain tx flow.
-7. **Validation**: run `npm run hardhat:test` + manual E2E on local network (deposit → list → swap → withdraw); capture addresses in README snippet.
+7. **Validation**: run `npm run hardhat:test` + manual E2E on local network (deposit → list → swap → withdraw); capture addresses in README snippet. ✅ `npm run hardhat:test` passing (2025-11-24).
 
 ### Notes for next contributors
 - Escrow 배포: `cd blockchain_contracts && npm run hardhat:test`로 확인 후 `node scripts/deploy_escrow.js` 실행 → `artifacts/NFTEscrow.deployment.json`과 ABI 생성. 이후 `setup_and_deploy.sh`/`redeploy_contract.sh`가 자동으로 ABI를 `frontend/src/abi/NFTEscrow.json`에 복사하고 `REACT_APP_ESCROW_ADDRESS`/`ESCROW_ADDRESS`를 `.env.local`과 `public/config.json`에 채워줍니다.

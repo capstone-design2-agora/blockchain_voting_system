@@ -98,7 +98,7 @@ export function NFTEscrowPanel({ wallet }: Props) {
           <p className="escrow-panel__label">연결된 지갑</p>
           <p className="escrow-panel__wallet">{wallet}</p>
         </div>
-        <button className="escrow-panel__refresh" onClick={refresh} disabled={isLoading}>
+        <button className="escrow-panel__refresh" onClick={() => refresh()} disabled={isLoading}>
           새로고침
         </button>
       </div>
