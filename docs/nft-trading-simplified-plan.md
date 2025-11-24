@@ -8,7 +8,7 @@ This document defines a minimal “deposit pool + instant swap” workflow. It r
 - Backend: `/api/nft-trading/deposits` (GET/POST), `/api/nft-trading/swap`, `/api/nft-trading/withdraw` scaffolded with basic validation, rate limiting, and Supabase writes. No on-chain relayer yet; assumes tx already mined.
 - Supabase: `20251113_nft_trading.sql` added with `deposits`/`swap_events` tables, indexes, updated_at trigger, and RLS (service role full access; public reads ACTIVE deposits; owners read/update via wallet claim). Not yet applied to DB in this repo state.
 - Indexer: `scripts/nft-escrow-indexer.js` added (WS listener, catch-up from cursor/START_BLOCK) mirroring Deposited/Swapped/Withdrawn into Supabase and persisting cursor under `.cache/escrow_cursor.json`.
-- Frontend: `/nft-exchange` remains placeholder; no deposit/swap/withdraw UI or API wiring.
+- Frontend: `/nft-exchange`에 Escrow API 테스트 패널 추가(`NFTEscrowPanel`)로 deposit 메타데이터 등록, swap/withdraw 기록, ACTIVE 목록 조회를 UI에서 호출 가능. 본격 UI/UX는 여전히 미구현.
 - Ops: No envs/keys set for escrow; no ABI synced to frontend.
 
 ## 1) Smart Contract (`NFTEscrow`)
@@ -83,7 +83,7 @@ This document defines a minimal “deposit pool + instant swap” workflow. It r
 3. **Supabase migration**: add `supabase/migrations/XXXX_nft_trading.sql` with tables/indexes and RLS policies. ✅ Added as `20251113_nft_trading.sql`; apply to Supabase and confirm wallet claim keys (`wallet_address`/`wallet`) in JWT match RLS.
 4. **API skeleton**: add `/api/nft-trading/deposits/index.ts` (GET/POST), `/api/nft-trading/swap.ts`, `/api/nft-trading/withdraw.ts`; shared auth/validation helpers; wire env vars. ✅ Added JS handlers with CORS, zod validation, wallet header checks, rate limit, and Supabase writes. Still missing contract calls/relayer.
 5. **Indexer worker**: add `scripts/nft-indexer.ts` (WS subscribe, Supabase upsert, cursor persistence). ✅ Added as `scripts/nft-escrow-indexer.js` (ESM). Env: `RPC_WS_URL`, `ESCROW_ADDRESS`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, optional `START_BLOCK`/`CURSOR_PATH`. Assumes on-chain tx mined; no relayer.
-6. **Frontend integration**: extend `frontend/src/lib/nftTradingApi.ts`; implement minimal deposit/swap/withdraw UI on `/nft-exchange`; add polling after writes.
+6. **Frontend integration**: extend `frontend/src/lib/nftTradingApi.ts`; implement minimal deposit/swap/withdraw UI on `/nft-exchange`; add polling after writes. 🏗️ Added `NFTEscrowPanel` (manual forms for deposits/swap/withdraw/list) + `nftEscrowApi.ts`; still need polished UX and on-chain tx flow.
 7. **Validation**: run `npm run hardhat:test` + manual E2E on local network (deposit → list → swap → withdraw); capture addresses in README snippet.
 
 ### Notes for next contributors
