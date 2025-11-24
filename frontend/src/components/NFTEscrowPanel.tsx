@@ -11,6 +11,7 @@ export function NFTEscrowPanel({ wallet }: Props) {
   const [deposits, setDeposits] = useState<EscrowDeposit[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
   const [createForm, setCreateForm] = useState({ depositId: "", nftContract: "", tokenId: "", txHash: "" });
   const [swapForm, setSwapForm] = useState({ myDepositId: "", targetDepositId: "", txHash: "" });
@@ -19,18 +20,25 @@ export function NFTEscrowPanel({ wallet }: Props) {
   useEffect(() => {
     if (!wallet) return;
     refresh();
+    const interval = window.setInterval(() => refresh(false), 10000);
+    return () => window.clearInterval(interval);
   }, [wallet]);
 
-  async function refresh() {
-    setIsLoading(true);
+  async function refresh(showSpinner = true) {
+    if (showSpinner) {
+      setIsLoading(true);
+    }
     setError(null);
     try {
       const res = await fetchDeposits({ owner: wallet, status: "ACTIVE", wallet });
       setDeposits(res.deposits);
+      setLastUpdated(new Date().toISOString());
     } catch (err: any) {
       setError(err?.message || "불러오기 실패");
     } finally {
-      setIsLoading(false);
+      if (showSpinner) {
+        setIsLoading(false);
+      }
     }
   }
 
@@ -95,6 +103,7 @@ export function NFTEscrowPanel({ wallet }: Props) {
       </div>
 
       {error && <div className="escrow-panel__error">{error}</div>}
+      {lastUpdated && <div className="escrow-panel__muted">마지막 업데이트: {new Date(lastUpdated).toLocaleTimeString()}</div>}
 
       <div className="escrow-panel__forms">
         <form className="escrow-panel__card" onSubmit={handleCreate}>

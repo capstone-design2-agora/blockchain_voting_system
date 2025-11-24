@@ -52,6 +52,11 @@
   border: 1px solid #fecaca;
 }
 
+.escrow-panel__muted {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
 .escrow-panel__forms {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
