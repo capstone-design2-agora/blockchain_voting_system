@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { createDeposit, fetchDeposits, swapDeposits, withdrawDeposit } from "../lib/nftEscrowApi";
 import type { EscrowDeposit } from "../types/nftEscrow";
 import "./NFTEscrowPanel.css";
+import { useCallback } from "react";
 
 interface Props {
   wallet: string;
@@ -17,14 +18,7 @@ export function NFTEscrowPanel({ wallet }: Props) {
   const [swapForm, setSwapForm] = useState({ myDepositId: "", targetDepositId: "", txHash: "" });
   const [withdrawForm, setWithdrawForm] = useState({ depositId: "", txHash: "" });
 
-  useEffect(() => {
-    if (!wallet) return;
-    refresh();
-    const interval = window.setInterval(() => refresh(false), 10000);
-    return () => window.clearInterval(interval);
-  }, [wallet]);
-
-  async function refresh(showSpinner = true) {
+  const refresh = useCallback(async (showSpinner = true) => {
     if (showSpinner) {
       setIsLoading(true);
     }
@@ -40,7 +34,14 @@ export function NFTEscrowPanel({ wallet }: Props) {
         setIsLoading(false);
       }
     }
-  }
+  }, [wallet]);
+
+  useEffect(() => {
+    if (!wallet) return;
+    refresh();
+    const interval = window.setInterval(() => refresh(false), 10000);
+    return () => window.clearInterval(interval);
+  }, [wallet, refresh]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
