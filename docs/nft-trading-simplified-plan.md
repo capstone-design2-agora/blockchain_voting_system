@@ -8,7 +8,7 @@ This document defines a minimal “deposit pool + instant swap” workflow. It r
 - Backend: `/api/nft-trading/deposits` (GET/POST), `/api/nft-trading/swap`, `/api/nft-trading/withdraw` scaffolded with basic validation, rate limiting, and Supabase writes. No on-chain relayer yet; assumes tx already mined.
 - Supabase: `20251113_nft_trading.sql` added with `deposits`/`swap_events` tables, indexes, updated_at trigger, and RLS (service role full access; public reads ACTIVE deposits; owners read/update via wallet claim). Not yet applied to DB in this repo state.
 - Indexer: `scripts/nft-escrow-indexer.js` added (WS listener, catch-up from cursor/START_BLOCK) mirroring Deposited/Swapped/Withdrawn into Supabase and persisting cursor under `.cache/escrow_cursor.json`.
-- Frontend: `/nft-exchange`에 Escrow API 테스트 패널 추가(`NFTEscrowPanel`)로 deposit 메타데이터 등록, swap/withdraw 기록, ACTIVE 목록 조회를 UI에서 호출 가능. 10초 폴링 + 수동 새로고침. 본격 UI/UX는 여전히 미구현.
+- Frontend: `/nft-exchange`에 Escrow API 테스트 패널 추가(`NFTEscrowPanel`)로 deposit 메타데이터 등록, swap/withdraw 기록, ACTIVE 목록 조회를 UI에서 호출 가능. 10초 폴링 + 수동 새로고침. NFTEscrow ABI 추가(`frontend/src/abi/NFTEscrow.json`), config 타입에 `ESCROW_ADDRESS` 포함. 본격 UI/UX는 여전히 미구현.
 - Ops: No envs/keys set for escrow; no ABI synced to frontend.
 
 ## 1) Smart Contract (`NFTEscrow`)
