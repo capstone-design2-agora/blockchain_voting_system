@@ -1,14 +1,11 @@
 {
   "builds": [
     {
-      "src": "frontend/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "build"
-      }
+      "src": "api/*.js",
+      "use": "@vercel/node"
     },
     {
-      "src": "api/**/*.js",
+      "src": "api/nft-trading/*.js",
       "use": "@vercel/node"
     }
   ],
