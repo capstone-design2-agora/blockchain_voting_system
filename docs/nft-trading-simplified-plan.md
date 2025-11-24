@@ -5,8 +5,9 @@ This document defines a minimal “deposit pool + instant swap” workflow. It r
 ## Current Status (as of writing)
 - Contract: `NFTEscrow` implemented with deposit/swap/withdraw, OZ 5.0.0, reentrancy guard, custom errors; Hardhat tests added (`npm run hardhat:test` passing).
 - Contract tooling: `blockchain_contracts/scripts/deploy_escrow.js` deploys NFTEscrow and writes ABI/deployment JSON; `setup_and_deploy.sh` and `redeploy_contract.sh` now sync NFTEscrow ABI to `frontend/src/abi/NFTEscrow.json` and populate `REACT_APP_ESCROW_ADDRESS`/`ESCROW_ADDRESS` in frontend config/env if `artifacts/NFTEscrow.deployment.json` exists (or `ESCROW_ADDRESS` env set).
-- Backend: `/api/nft-trading/deposits` (GET/POST), `/api/nft-trading/swap`, `/api/nft-trading/withdraw` scaffolded with basic validation, rate limiting, and Supabase writes. No on-chain relayer yet; assumes tx already mined. No indexer/worker exists.
+- Backend: `/api/nft-trading/deposits` (GET/POST), `/api/nft-trading/swap`, `/api/nft-trading/withdraw` scaffolded with basic validation, rate limiting, and Supabase writes. No on-chain relayer yet; assumes tx already mined.
 - Supabase: `20251113_nft_trading.sql` added with `deposits`/`swap_events` tables, indexes, updated_at trigger, and RLS (service role full access; public reads ACTIVE deposits; owners read/update via wallet claim). Not yet applied to DB in this repo state.
+- Indexer: `scripts/nft-escrow-indexer.js` added (WS listener, catch-up from cursor/START_BLOCK) mirroring Deposited/Swapped/Withdrawn into Supabase and persisting cursor under `.cache/escrow_cursor.json`.
 - Frontend: `/nft-exchange` remains placeholder; no deposit/swap/withdraw UI or API wiring.
 - Ops: No envs/keys set for escrow; no ABI synced to frontend.
 
@@ -81,7 +82,7 @@ This document defines a minimal “deposit pool + instant swap” workflow. It r
 2. **Build/Deploy wiring**: add npm scripts (`hardhat test`, `hardhat run scripts/deploy_escrow.ts --network local`); extend `blockchain_contracts/scripts/setup_and_deploy.sh` to copy `NFTEscrow` ABI/address to `frontend/src/abi/NFTEscrow.json`.
 3. **Supabase migration**: add `supabase/migrations/XXXX_nft_trading.sql` with tables/indexes and RLS policies. ✅ Added as `20251113_nft_trading.sql`; apply to Supabase and confirm wallet claim keys (`wallet_address`/`wallet`) in JWT match RLS.
 4. **API skeleton**: add `/api/nft-trading/deposits/index.ts` (GET/POST), `/api/nft-trading/swap.ts`, `/api/nft-trading/withdraw.ts`; shared auth/validation helpers; wire env vars. ✅ Added JS handlers with CORS, zod validation, wallet header checks, rate limit, and Supabase writes. Still missing contract calls/relayer.
-5. **Indexer worker**: add `scripts/nft-indexer.ts` (WS subscribe, Supabase upsert, cursor persistence).
+5. **Indexer worker**: add `scripts/nft-indexer.ts` (WS subscribe, Supabase upsert, cursor persistence). ✅ Added as `scripts/nft-escrow-indexer.js` (ESM). Env: `RPC_WS_URL`, `ESCROW_ADDRESS`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, optional `START_BLOCK`/`CURSOR_PATH`. Assumes on-chain tx mined; no relayer.
 6. **Frontend integration**: extend `frontend/src/lib/nftTradingApi.ts`; implement minimal deposit/swap/withdraw UI on `/nft-exchange`; add polling after writes.
 7. **Validation**: run `npm run hardhat:test` + manual E2E on local network (deposit → list → swap → withdraw); capture addresses in README snippet.
 
@@ -89,3 +90,4 @@ This document defines a minimal “deposit pool + instant swap” workflow. It r
 - Escrow 배포: `cd blockchain_contracts && npm run hardhat:test`로 확인 후 `node scripts/deploy_escrow.js` 실행 → `artifacts/NFTEscrow.deployment.json`과 ABI 생성. 이후 `setup_and_deploy.sh`/`redeploy_contract.sh`가 자동으로 ABI를 `frontend/src/abi/NFTEscrow.json`에 복사하고 `REACT_APP_ESCROW_ADDRESS`/`ESCROW_ADDRESS`를 `.env.local`과 `public/config.json`에 채워줍니다.
 - 이미 배포된 Escrow 주소가 있으면 스크립트 실행 전에 `ESCROW_ADDRESS=<addr>`를 export 하면 재배포 없이 프런트 설정이 채워집니다.
 - 프런트는 `frontend/src/abi/NFTEscrow.json`과 주소(.env.local 또는 public/config.json)를 사용하므로, 위 스크립트 실행 후 프런트를 재시작하세요.
+- 인덱서: `node scripts/nft-escrow-indexer.js` (ESM). `.cache/escrow_cursor.json`에 커서 저장. 재시작 시 `START_BLOCK` 또는 커서에서 리플레이. RLS는 service role로 우회하므로 `SUPABASE_SERVICE_ROLE_KEY` 필수.
