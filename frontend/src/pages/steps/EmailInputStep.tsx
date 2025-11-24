@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import useEmailVerificationStore from '../../stores/emailVerificationStore';
 import { EmailVerificationAPI } from '../../lib/emailVerificationApi';
@@ -38,25 +38,26 @@ export default function EmailInputStep() {
     const [emailError, setEmailError] = useState<string | null>(null);
     const allowedDomains = getAllowedDomains();
 
-    const validateEmail = useCallback(
-        debounce((value: string) => {
-            if (!value) {
+    const validateEmail = useMemo(
+        () =>
+            debounce((value: string) => {
+                if (!value) {
+                    setEmailError(null);
+                    return;
+                }
+
+                if (!isEmailValid(value)) {
+                    setEmailError('유효한 이메일 형식이 아닙니다.');
+                    return;
+                }
+
+                if (!isDomainAllowed(value, allowedDomains)) {
+                    setEmailError(`허용된 도메인: ${allowedDomains.join(', ')}`);
+                    return;
+                }
+
                 setEmailError(null);
-                return;
-            }
-
-            if (!isEmailValid(value)) {
-                setEmailError('유효한 이메일 형식이 아닙니다.');
-                return;
-            }
-
-            if (!isDomainAllowed(value, allowedDomains)) {
-                setEmailError(`허용된 도메인: ${allowedDomains.join(', ')}`);
-                return;
-            }
-
-            setEmailError(null);
-        }, 500),
+            }, 500),
         [allowedDomains]
     );
 
