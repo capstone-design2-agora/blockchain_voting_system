@@ -17,9 +17,12 @@ const requestSchema = z.object({
 
 export default async function handler(req, res) {
   // CORS 헤더 설정
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, x-wallet-address, x-wallet, *"
+  );
 
   // Preflight 요청 처리
   if (req.method === 'OPTIONS') {
