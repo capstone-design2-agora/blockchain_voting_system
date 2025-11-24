@@ -1,13 +1,13 @@
 import crypto from "node:crypto";
 import { z } from "zod";
-import { getEnv } from "./_lib/env.js";
-import { getSupabaseClient } from "./_lib/supabase.js";
-import { normalizeEmail, normalizeWalletAddress, isDomainAllowed, createLookupHmac, hashVerificationCode, hashIpAddress } from "./_lib/crypto.js";
-import { bufferToPgBytea } from "./_lib/bytea.js";
-import { sendVerificationEmail } from "./_lib/email.js";
-import { enforceRateLimit } from "./_lib/rate-limit.js";
-import { ValidationError, HttpError } from "./_lib/errors.js";
-import { readJsonBody, getRequestIp } from "./_lib/request.js";
+import { getEnv } from "../api-lib/env.js";
+import { getSupabaseClient } from "../api-lib/supabase.js";
+import { normalizeEmail, normalizeWalletAddress, isDomainAllowed, createLookupHmac, hashVerificationCode, hashIpAddress } from "../api-lib/crypto.js";
+import { bufferToPgBytea } from "../api-lib/bytea.js";
+import { sendVerificationEmail } from "../api-lib/email.js";
+import { enforceRateLimit } from "../api-lib/rate-limit.js";
+import { ValidationError, HttpError } from "../api-lib/errors.js";
+import { readJsonBody, getRequestIp } from "../api-lib/request.js";
 
 const requestSchema = z.object({
   email: z.string().email(),

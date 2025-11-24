@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { getSupabaseClient } from "../_lib/supabase.js";
-import { enforceRateLimit } from "../_lib/rate-limit.js";
-import { HttpError, RateLimitError, ValidationError } from "../_lib/errors.js";
+import { getSupabaseClient } from "../../api-lib/supabase.js";
+import { enforceRateLimit } from "../../api-lib/rate-limit.js";
+import { HttpError, RateLimitError, ValidationError } from "../../api-lib/errors.js";
 import {
   applyCors,
   ensureOwner,

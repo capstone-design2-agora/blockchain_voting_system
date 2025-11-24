@@ -1,6 +1,6 @@
 import { getAddress, JsonRpcProvider } from "ethers";
-import { normalizeWalletAddress } from "../_lib/crypto.js";
-import { HttpError, UnauthorizedError, ValidationError } from "../_lib/errors.js";
+import { normalizeWalletAddress } from "../../api-lib/crypto.js";
+import { HttpError, UnauthorizedError, ValidationError } from "../../api-lib/errors.js";
 
 let cachedProvider;
 
