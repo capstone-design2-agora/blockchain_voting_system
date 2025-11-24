@@ -100,6 +100,25 @@ echo ""
 
 node "${SCRIPT_DIR}/deploy_sbt_system.js"
 
+# NFTEscrow 배포 (없을 때만)
+if [ -z "${ESCROW_ADDRESS:-}" ]; then
+    echo ""
+    echo "🚀 NFTEscrow 배포 시도 (ESCROW_ADDRESS 미지정)"
+    if node "${SCRIPT_DIR}/deploy_escrow.js"; then
+        if [ -f "artifacts/NFTEscrow.deployment.json" ]; then
+            ESCROW_ADDRESS=$(node -pe "JSON.parse(require('fs').readFileSync('artifacts/NFTEscrow.deployment.json', 'utf8')).address")
+            echo "✅ NFTEscrow 배포 완료: $ESCROW_ADDRESS"
+        else
+            echo "⚠️ NFTEscrow.deployment.json을 찾을 수 없습니다. 배포 결과를 확인하세요."
+        fi
+    else
+        echo "⚠️ NFTEscrow 배포 실패 (계속 진행하지만 프런트 설정은 채워지지 않습니다)"
+    fi
+else
+    echo ""
+    echo "ℹ️ ESCROW_ADDRESS가 이미 설정되어 있어 NFTEscrow를 재배포하지 않습니다: $ESCROW_ADDRESS"
+fi
+
 if [ $? -eq 0 ]; then
     echo ""
     echo "========================================"
@@ -130,6 +149,12 @@ if [ $? -eq 0 ]; then
             cp artifacts/VotingRewardNFT.abi.json "$FRONTEND_ABI_DIR/VotingRewardNFT.json"
             echo "  ✓ VotingRewardNFT.json"
         fi
+        if [ -f "artifacts/NFTEscrow.abi.json" ]; then
+            cp artifacts/NFTEscrow.abi.json "$FRONTEND_ABI_DIR/NFTEscrow.json"
+            echo "  ✓ NFTEscrow.json"
+        else
+            echo "  - NFTEscrow ABI not found (run scripts/deploy_escrow.js if needed)"
+        fi
         echo "✅ ABI 파일 동기화 완료"
         echo ""
         
@@ -138,6 +163,9 @@ if [ $? -eq 0 ]; then
         REWARD_NFT=$(node -pe "JSON.parse(require('fs').readFileSync('artifacts/sbt_deployment.json', 'utf8')).contracts.VotingRewardNFT.address")
         VOTING_CONTRACT=$(node -pe "JSON.parse(require('fs').readFileSync('artifacts/sbt_deployment.json', 'utf8')).contracts.VotingWithSBT.address")
         VERIFIER=$(node -pe "JSON.parse(require('fs').readFileSync('artifacts/sbt_deployment.json', 'utf8')).contracts.CitizenSBT.verifier")
+        if [ -z "${ESCROW_ADDRESS:-}" ]; then
+            ESCROW_ADDRESS=$(node -pe "try { JSON.parse(require('fs').readFileSync('artifacts/NFTEscrow.deployment.json', 'utf8')).address } catch(e) { '' }")
+        fi
         
         echo ""
         echo "📍 배포된 컨트랙트 주소:"
@@ -145,6 +173,9 @@ if [ $? -eq 0 ]; then
         echo "  VotingRewardNFT:   $REWARD_NFT"
         echo "  VotingWithSBT:     $VOTING_CONTRACT"
         echo "  Verifier:          $VERIFIER"
+        if [ -n "$ESCROW_ADDRESS" ]; then
+            echo "  NFTEscrow:         $ESCROW_ADDRESS"
+        fi
         echo ""
         
         # 프론트엔드 .env.local 업데이트
@@ -160,6 +191,13 @@ if [ $? -eq 0 ]; then
             sed -i "s|REACT_APP_VOTING_CONTRACT_ADDRESS=.*|REACT_APP_VOTING_CONTRACT_ADDRESS=$VOTING_CONTRACT|g" "$FRONTEND_ENV"
             sed -i "s|REACT_APP_REWARD_NFT_ADDRESS=.*|REACT_APP_REWARD_NFT_ADDRESS=$REWARD_NFT|g" "$FRONTEND_ENV"
             sed -i "s|REACT_APP_VERIFIER_ADDRESS=.*|REACT_APP_VERIFIER_ADDRESS=$VERIFIER|g" "$FRONTEND_ENV"
+            if [ -n "$ESCROW_ADDRESS" ]; then
+                if grep -q "^REACT_APP_ESCROW_ADDRESS=" "$FRONTEND_ENV"; then
+                    sed -i "s|REACT_APP_ESCROW_ADDRESS=.*|REACT_APP_ESCROW_ADDRESS=$ESCROW_ADDRESS|g" "$FRONTEND_ENV"
+                else
+                    echo "REACT_APP_ESCROW_ADDRESS=$ESCROW_ADDRESS" >> "$FRONTEND_ENV"
+                fi
+            fi
             
             echo "✅ 프론트엔드 설정 업데이트 완료"
             echo "  파일: $FRONTEND_ENV"
@@ -169,6 +207,9 @@ if [ $? -eq 0 ]; then
             echo "    VOTING_CONTRACT: $VOTING_CONTRACT"
             echo "    REWARD_NFT:      $REWARD_NFT"
             echo "    VERIFIER:        $VERIFIER"
+            if [ -n "$ESCROW_ADDRESS" ]; then
+                echo "    NFTEscrow:       $ESCROW_ADDRESS"
+            fi
             echo ""
             echo "⚠️  프론트엔드를 재시작해야 변경사항이 적용됩니다:"
             echo "  cd ../frontend && npm start"
@@ -190,6 +231,7 @@ if [ $? -eq 0 ]; then
   "VOTING_CONTRACT_ADDRESS": "$VOTING_CONTRACT",
   "REWARD_NFT_ADDRESS": "$REWARD_NFT",
   "VERIFIER_ADDRESS": "$VERIFIER",
+  "ESCROW_ADDRESS": "$ESCROW_ADDRESS",
   "RPC_URL": "http://localhost:9545",
   "CHAIN_ID": "0x539",
   "CHAIN_NAME": "Quorum Local",

@@ -3,6 +3,7 @@ export interface AppConfig {
   VOTING_CONTRACT_ADDRESS: string;
   REWARD_NFT_ADDRESS: string;
   VERIFIER_ADDRESS: string;
+  ESCROW_ADDRESS?: string;
   RPC_URL: string;
   CHAIN_ID: string;
   CHAIN_NAME: string;

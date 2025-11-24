@@ -16,6 +16,7 @@ import type { UserSummary } from "../types/nftTrading";
 import { checkHasSBT } from "../lib/sbt";
 import { useToast } from "../components/ToastProvider";
 import "./NFTExchangePage.css";
+import { NFTEscrowPanel } from "../components/NFTEscrowPanel";
 
 interface TabConfig {
   key: NFTTradingTab;
@@ -301,6 +302,17 @@ export default function NFTExchangePage() {
             </div>
           ))}
         </div>
+
+        {detectedWallet && (
+          <section className="nft-exchange-escrow">
+            <h3>Escrow 데이터 빠른 확인 (API 연동)</h3>
+            <p className="nft-exchange-escrow__desc">
+              새 API(`/api/nft-trading/*`)와 Supabase 동기화를 테스트하기 위한 미니 패널입니다. 온체인 트랜잭션은 직접 실행한 뒤
+              메타데이터/스왑/출금 상태를 기록하세요.
+            </p>
+            <NFTEscrowPanel wallet={detectedWallet} />
+          </section>
+        )}
       </main>
     </div>
   );
