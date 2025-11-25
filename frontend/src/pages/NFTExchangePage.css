@@ -1089,6 +1089,64 @@
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
 }
 
+.swap-picker {
+  margin-top: 12px;
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  padding: 12px;
+  background: #0b1224;
+}
+
+.swap-picker__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.swap-picker__close {
+  background: transparent;
+  border: none;
+  color: #e5e7eb;
+  font-size: 22px;
+  cursor: pointer;
+}
+
+.swap-picker__list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.swap-picker__item {
+  border: 1px solid #1f2937;
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  background: #0f172a;
+}
+
+.swap-picker__info {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.swap-picker__info img {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.swap-picker__title {
+  margin: 0;
+  font-weight: 700;
+}
+
 @media (max-width: 768px) {
   .nft-exchange-header-content {
     flex-direction: column;

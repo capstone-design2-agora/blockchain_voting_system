@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ArrowLeftRight, Loader2, Upload, RotateCcw } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, Loader2, Upload, RotateCcw, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router";
 import useEmailVerificationStore from "../stores/emailVerificationStore";
 import useNFTTradingStore from "../stores/nftTradingStore";
 import type { UserSummary } from "../types/nftTrading";
 import { checkHasSBT } from "../lib/sbt";
 import { useToast } from "../components/ToastProvider";
-import { depositToEscrow } from "../lib/escrow";
+import { depositToEscrow, swapOnEscrow, withdrawFromEscrow } from "../lib/escrow";
 import { getDeposits } from "../lib/nftTradingApi";
 import "./NFTExchangePage.css";
 
@@ -39,6 +39,9 @@ export default function NFTExchangePage() {
   const [listing, setListing] = useState(false);
   const [activeTab, setActiveTab] = useState<"mine" | "market">("mine");
   const [marketListings, setMarketListings] = useState<NftCardData[]>([]);
+  const [swapTarget, setSwapTarget] = useState<NftCardData | null>(null);
+  const [swapLoading, setSwapLoading] = useState(false);
+  const [withdrawLoadingId, setWithdrawLoadingId] = useState<string | null>(null);
 
   // Hydrate wallet state if user already connected MetaMask outside of this session
   useEffect(() => {
@@ -162,44 +165,10 @@ export default function NFTExchangePage() {
     };
   }, [accessGranted, userSummary, isUserSummaryLoading, setUserSummary, setUserSummaryLoading, listedNfts.length]);
 
-  // Mock/load user NFTs (placeholder images)
+  // Placeholder for wallet NFTs — replace with real wallet fetch
   useEffect(() => {
     if (!accessGranted) return;
-    // TODO: replace with actual wallet NFT fetch
-    setAvailableNfts([
-      {
-        id: "1",
-        name: "Civic Badge #1",
-        image: "https://picsum.photos/seed/civic1/400/400",
-        rarity: "레전더리",
-        tokenId: "1",
-        contract: "0xabc...123",
-      },
-      {
-        id: "2",
-        name: "Civic Badge #2",
-        image: "https://picsum.photos/seed/civic2/400/400",
-        rarity: "에픽",
-        tokenId: "2",
-        contract: "0xabc...123",
-      },
-      {
-        id: "3",
-        name: "Civic Badge #3",
-        image: "https://picsum.photos/seed/civic3/400/400",
-        rarity: "레어",
-        tokenId: "3",
-        contract: "0xabc...123",
-      },
-      {
-        id: "4",
-        name: "Civic Badge #4",
-        image: "https://picsum.photos/seed/civic4/400/400",
-        rarity: "커먼",
-        tokenId: "4",
-        contract: "0xabc...123",
-      },
-    ]);
+    setAvailableNfts([]);
 
     // Pull market listings from API (deposits)
     getDeposits({ status: "ACTIVE", limit: 50 })
@@ -207,7 +176,7 @@ export default function NFTExchangePage() {
         const mapped: NftCardData[] = resp.deposits.map((d) => ({
           id: d.id,
           name: `Deposit #${d.id}`,
-          image: "https://picsum.photos/seed/deposit" + d.id + "/400/400",
+          image: "",
           rarity: "미정",
           tokenId: d.token_id,
           contract: d.nft_contract,
@@ -227,7 +196,6 @@ export default function NFTExchangePage() {
   const handleListToMarket = async (nft: NftCardData) => {
     setListing(true);
     try {
-      // In a real flow, call depositToEscrow. Here we just simulate success.
       await depositToEscrow(nft.contract, nft.tokenId);
       setAvailableNfts((prev) => prev.filter((n) => n.id !== nft.id));
       setListedNfts((prev) => [...prev, { ...nft, badge: "LISTED" }]);
@@ -248,6 +216,65 @@ export default function NFTExchangePage() {
     setListedNfts((prev) => prev.filter((n) => n.id !== nft.id));
     setAvailableNfts((prev) => [...prev, { ...nft, badge: undefined }]);
     showToast({ title: "마켓에서 내렸습니다", description: `${nft.name}이(가) 다시 내 보관함으로 이동` });
+  };
+
+  const refreshMarket = async () => {
+    try {
+      const resp = await getDeposits({ status: "ACTIVE", limit: 50 });
+      const mapped: NftCardData[] = resp.deposits.map((d) => ({
+        id: d.id,
+        name: `Deposit #${d.id}`,
+        image: "https://picsum.photos/seed/deposit" + d.id + "/400/400",
+        rarity: "미정",
+        tokenId: d.token_id,
+        contract: d.nft_contract,
+        badge: d.status,
+      }));
+      setMarketListings(mapped);
+    } catch (error) {
+      console.error("refresh market failed", error);
+    }
+  };
+
+  const handleWithdrawOnChain = async (nft: NftCardData) => {
+    setWithdrawLoadingId(nft.id);
+    try {
+      await withdrawFromEscrow(nft.id);
+      handleWithdraw(nft);
+      await refreshMarket();
+    } catch (error: any) {
+      console.error("withdraw failed", error);
+      showToast({
+        title: "withdraw 실패",
+        description: error?.shortMessage || error?.message || "Unknown error",
+        variant: "error",
+      });
+    } finally {
+      setWithdrawLoadingId(null);
+    }
+  };
+
+  const handleSwap = async (myNft: NftCardData) => {
+    if (!swapTarget) return;
+    setSwapLoading(true);
+    try {
+      await swapOnEscrow(swapTarget.id, myNft.contract, myNft.tokenId);
+      showToast({ title: "스왑 성공", description: `${swapTarget.name} ↔ ${myNft.name}` });
+      setAvailableNfts((prev) => prev.filter((n) => n.id !== myNft.id));
+      setListedNfts((prev) => prev.filter((n) => n.id !== swapTarget.id));
+      setMarketListings((prev) => prev.filter((n) => n.id !== swapTarget.id));
+      setSwapTarget(null);
+      await refreshMarket();
+    } catch (error: any) {
+      console.error("swap failed", error);
+      showToast({
+        title: "스왑 실패",
+        description: error?.shortMessage || error?.message || "Unknown error",
+        variant: "error",
+      });
+    } finally {
+      setSwapLoading(false);
+    }
   };
 
   if (isCheckingAccess) {
@@ -336,18 +363,19 @@ export default function NFTExchangePage() {
                   <p className="nft-hint">이 섹션의 카드는 이미 예치(escrow)된 것으로 가정합니다.</p>
                 </div>
               </div>
-              <NftGrid
-                nfts={listedNfts}
-                emptyText="마켓에 올린 NFT가 없습니다."
-                actionLabel="내리기"
-                actionIcon={<RotateCcw size={16} />}
-                onAction={handleWithdraw}
-                badge="LISTED"
-              />
-            </div>
-          </section>
-        ) : (
-          <section className="exchange-column">
+            <NftGrid
+              nfts={listedNfts}
+              emptyText="마켓에 올린 NFT가 없습니다."
+              actionLabel={withdrawLoadingId ? "처리 중..." : "내리기"}
+              actionIcon={<RotateCcw size={16} />}
+              onAction={handleWithdrawOnChain}
+              badge="LISTED"
+              disabled={!!withdrawLoadingId}
+            />
+          </div>
+        </section>
+      ) : (
+        <section className="exchange-column">
             <div className="exchange-column__header">
               <div>
                 <p className="nft-subtitle">마켓</p>
@@ -358,13 +386,23 @@ export default function NFTExchangePage() {
             <NftGrid
               nfts={[...marketListings, ...listedNfts]}
               emptyText="마켓에 올라온 NFT가 없습니다."
-              actionLabel="상세 보기"
+              actionLabel="스왑하기"
               actionIcon={<ArrowLeftRight size={16} />}
-              onAction={() => {
-                showToast({ title: "준비중", description: "상세 보기/스왑 흐름은 후속 단계에서 구현됩니다." });
+              onAction={(nft) => {
+                setSwapTarget(nft);
               }}
               badge="LISTED"
+              disabled={swapLoading}
             />
+            {swapTarget ? (
+              <SwapPicker
+                target={swapTarget}
+                myNfts={availableNfts}
+                onClose={() => setSwapTarget(null)}
+                onSwap={handleSwap}
+                loading={swapLoading}
+              />
+            ) : null}
           </section>
         )}
       </main>
@@ -455,6 +493,58 @@ function NftGrid({
           </div>
         </article>
       ))}
+    </div>
+  );
+}
+
+function SwapPicker({
+  target,
+  myNfts,
+  onClose,
+  onSwap,
+  loading,
+}: {
+  target: NftCardData;
+  myNfts: NftCardData[];
+  onClose: () => void;
+  onSwap: (myNft: NftCardData) => void;
+  loading: boolean;
+}) {
+  return (
+    <div className="swap-picker">
+      <div className="swap-picker__header">
+        <div>
+          <p className="nft-subtitle">스왑 대상</p>
+          <h3>{target.name}</h3>
+          <p className="nft-hint">내 NFT를 선택해 즉시 스왑합니다.</p>
+        </div>
+        <button className="swap-picker__close" onClick={onClose} aria-label="닫기">
+          ×
+        </button>
+      </div>
+      <div className="swap-picker__list">
+        {myNfts.length === 0 ? (
+          <div className="nft-grid-empty">스왑할 내 NFT가 없습니다.</div>
+        ) : (
+          myNfts.map((nft) => (
+            <div key={nft.id} className="swap-picker__item">
+              <div className="swap-picker__info">
+                <img src={nft.image} alt={nft.name} />
+                <div>
+                  <p className="swap-picker__title">{nft.name}</p>
+                  <p className="nft-card__meta">
+                    Token #{nft.tokenId} · <span className="mono">{nft.contract}</span>
+                  </p>
+                </div>
+              </div>
+              <button className="nft-exchange-button" disabled={loading} onClick={() => onSwap(nft)}>
+                <ArrowRight size={16} />
+                <span>이 NFT로 스왑</span>
+              </button>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }

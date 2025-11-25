@@ -44,6 +44,7 @@ Remaining: reentrancy attempt test, non-ERC721 address revert test, transfer fai
 6. ✅ Swap modal with manual wallet NFT picker + tokenURI fetch; disables when no target selected.
 7. ✅ Basic token metadata fetch (tokenURI + image) in modal; address/token still primary display.
 8. ✅ Added auto-refresh of known deposits (on-chain polling) and error surfacing; still optional to swap to API/indexer when ready.
+9. ✅ Reattached on-chain actions to cards: market tab uses `swapOnEscrow` via SwapPicker; listed items use `withdrawFromEscrow`; refresh market feed after tx.
 
 ### Phase C — Optional Indexer + Supabase Cache
 1. Supabase tables already exist:
