@@ -17,6 +17,7 @@ import { checkHasSBT } from "../lib/sbt";
 import { useToast } from "../components/ToastProvider";
 import { depositToEscrow, swapOnEscrow, withdrawFromEscrow, getDeposit } from "../lib/escrow";
 import "./NFTExchangePage.css";
+import { ethers } from "ethers";
 
 interface TabConfig {
   key: NFTTradingTab;
@@ -417,6 +418,8 @@ function EscrowQuickPanel() {
     { id: string; owner: string; nft: string; tokenId: string; active: boolean }[]
   >([]);
   const [bulkIds, setBulkIds] = useState("");
+  const [swapModalOpen, setSwapModalOpen] = useState(false);
+  const [swapModalTarget, setSwapModalTarget] = useState<string | null>(null);
 
   const refreshDeposits = async (ids: string[]) => {
     const signer = await (async () => {
@@ -620,6 +623,21 @@ function EscrowQuickPanel() {
         runTx={runTx}
         setBulkIds={setBulkIds}
         bulkIds={bulkIds}
+        openSwapModal={(id) => {
+          setSwapTargetId(id);
+          setSwapModalTarget(id);
+          setSwapModalOpen(true);
+        }}
+      />
+      <SwapModal
+        open={swapModalOpen}
+        onClose={() => setSwapModalOpen(false)}
+        targetDepositId={swapModalTarget}
+        onSwap={async (targetId, nftAddr, tokenId) =>
+          runTx("Swap", () => swapOnEscrow(targetId, nftAddr, tokenId), async () => {
+            if (targetId) await refreshDeposit(targetId);
+          })
+        }
       />
     </section>
   );
@@ -640,6 +658,7 @@ function KnownDepositsSection({
   runTx,
   bulkIds,
   setBulkIds,
+  openSwapModal,
 }: {
   deposits: DepositRow[];
   setDeposits: React.Dispatch<React.SetStateAction<DepositRow[]>>;
@@ -648,6 +667,7 @@ function KnownDepositsSection({
   runTx: (action: string, fn: () => Promise<any>) => Promise<void>;
   bulkIds: string;
   setBulkIds: (s: string) => void;
+  openSwapModal: (id: string) => void;
 }) {
   const { showToast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -758,6 +778,14 @@ function KnownDepositsSection({
                 <button
                   type="button"
                   className="escrow-button"
+                  onClick={() => openSwapModal(d.id)}
+                  disabled={!d.active}
+                >
+                  Swap with my NFT
+                </button>
+                <button
+                  type="button"
+                  className="escrow-button"
                   disabled={!d.active}
                   onClick={() => runTx("Withdraw", () => withdrawFromEscrow(d.id))}
                 >
@@ -771,6 +799,125 @@ function KnownDepositsSection({
       </div>
     </div>
   );
+}
+
+function SwapModal({
+  open,
+  onClose,
+  targetDepositId,
+  onSwap,
+}: {
+  open: boolean;
+  onClose: () => void;
+  targetDepositId: string | null;
+  onSwap: (targetId: string, nft: string, tokenId: string) => Promise<void>;
+}) {
+  const { showToast } = useToast();
+  const [nft, setNft] = useState("");
+  const [tokenId, setTokenId] = useState("");
+  const [metadata, setMetadata] = useState<{ name?: string; image?: string; tokenURI?: string } | null>(null);
+  const [loadingMeta, setLoadingMeta] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      setMetadata(null);
+      setNft("");
+      setTokenId("");
+    }
+  }, [open]);
+
+  const fetchMetadata = async () => {
+    if (!nft || !tokenId) {
+      showToast({ title: "Enter contract & token", description: "Fill both fields first", variant: "error" });
+      return;
+    }
+    setLoadingMeta(true);
+    try {
+      const provider = new ethers.BrowserProvider((window as any).ethereum);
+      const erc721 = new ethers.Contract(
+        nft,
+        ["function tokenURI(uint256) view returns (string)"],
+        provider
+      );
+      const uri = await erc721.tokenURI(tokenId);
+      const meta = await fetch(resolveIpfs(uri)).then((r) => r.json());
+      setMetadata({ name: meta.name, image: resolveIpfs(meta.image || ""), tokenURI: uri });
+    } catch (error: any) {
+      console.error("metadata fetch failed", error);
+      showToast({
+        title: "Failed to fetch tokenURI",
+        description: error?.shortMessage || error?.message || "Unknown error",
+        variant: "error",
+      });
+      setMetadata(null);
+    } finally {
+      setLoadingMeta(false);
+    }
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="swap-modal-backdrop" role="dialog" aria-modal="true">
+      <div className="swap-modal">
+        <div className="swap-modal__header">
+          <div>
+            <p className="escrow-quick-panel__eyebrow">Swap modal</p>
+            <h3>Swap with your NFT</h3>
+            <p className="escrow-quick-panel__note">
+              Target deposit: {targetDepositId ? `#${targetDepositId}` : "None selected"}
+            </p>
+          </div>
+          <button className="swap-modal__close" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </div>
+        <div className="swap-modal__body">
+          <label className="escrow-label">
+            My NFT contract
+            <input value={nft} onChange={(e) => setNft(e.target.value)} placeholder="0x..." />
+          </label>
+          <label className="escrow-label">
+            My token ID
+            <input value={tokenId} onChange={(e) => setTokenId(e.target.value)} placeholder="e.g. 1" />
+          </label>
+          <div className="swap-modal__actions">
+            <button type="button" className="escrow-button escrow-button--ghost" onClick={fetchMetadata} disabled={loadingMeta}>
+              {loadingMeta ? "Loading..." : "Fetch tokenURI"}
+            </button>
+            <button
+              type="button"
+              className="escrow-button"
+              disabled={!targetDepositId || !nft || !tokenId}
+              onClick={() => {
+                if (!targetDepositId) return;
+                onSwap(targetDepositId, nft, tokenId).then(onClose);
+              }}
+            >
+              Swap now
+            </button>
+          </div>
+          {metadata ? (
+            <div className="swap-meta">
+              <p className="escrow-quick-panel__note">tokenURI: {metadata.tokenURI}</p>
+              <p className="swap-meta__title">{metadata.name}</p>
+              {metadata.image ? (
+                <img src={metadata.image} alt={metadata.name || "token image"} className="swap-meta__image" />
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function resolveIpfs(uri: string) {
+  if (!uri) return uri;
+  if (uri.startsWith("ipfs://")) {
+    return uri.replace("ipfs://", "https://ipfs.io/ipfs/");
+  }
+  return uri;
 }
 
 function formatTimestamp(timestamp?: string | null) {

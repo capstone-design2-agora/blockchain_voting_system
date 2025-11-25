@@ -888,6 +888,71 @@
   color: #94a3b8;
 }
 
+.swap-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.swap-modal {
+  background: #0b1224;
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  padding: 16px;
+  width: min(520px, 90vw);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.swap-modal__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.swap-modal__close {
+  background: transparent;
+  border: none;
+  color: #e5e7eb;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.swap-modal__body {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.swap-modal__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.swap-meta {
+  margin-top: 8px;
+  border: 1px solid #1f2937;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.swap-meta__title {
+  margin: 4px 0;
+  font-weight: 700;
+}
+
+.swap-meta__image {
+  max-width: 100%;
+  border-radius: 8px;
+  margin-top: 6px;
+}
+
 @media (max-width: 768px) {
   .nft-exchange-header-content {
     flex-direction: column;

@@ -41,8 +41,8 @@ Remaining: reentrancy attempt test, non-ERC721 address revert test, transfer fai
 3. ✅ Quick panel (Deposit/Swap/Withdraw inputs) wired to on-chain calls with toast feedback; includes risk warning.
 4. ✅ Added on-chain “Lookup Deposit” table + known deposits cards; can set swap target and withdraw if active.
 5. ✅ Listing grid (known deposits cards) with swap-target selection and withdraw actions; refreshes status after tx.
-6. TODO Swap modal with wallet NFT picker; disable if target not active.
-7. TODO Pull NFT metadata (tokenURI) when possible; currently address/token only.
+6. ✅ Swap modal with manual wallet NFT picker + tokenURI fetch; disables when no target selected.
+7. ✅ Basic token metadata fetch (tokenURI + image) in modal; address/token still primary display.
 8. TODO Better empty/error handling and auto-refresh via API/indexer when available.
 
 ### Phase C — Optional Indexer + Supabase Cache
