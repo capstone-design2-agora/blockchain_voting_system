@@ -7,7 +7,7 @@ import type { UserSummary } from "../types/nftTrading";
 import { checkHasSBT } from "../lib/sbt";
 import { useToast } from "../components/ToastProvider";
 import { depositToEscrow, swapOnEscrow, withdrawFromEscrow } from "../lib/escrow";
-import { getRewardNFTs } from "../lib/sbt";
+import { getRewardNFTs, REWARD_NFT_ADDR } from "../lib/sbt";
 import { getDeposits } from "../lib/nftTradingApi";
 import "./NFTExchangePage.css";
 
@@ -175,11 +175,11 @@ export default function NFTExchangePage() {
         const tokens = await getRewardNFTs(wallet);
         const mapped: NftCardData[] = tokens.map((t) => ({
           id: String(t.tokenId),
-          name: t.name || `Reward NFT #${t.tokenId}`,
-          image: t.image || "",
-          rarity: t.rarity || "미정",
+          name: `Reward NFT #${t.tokenId}`,
+          image: t.imageUrl || "",
+          rarity: "Reward",
           tokenId: String(t.tokenId),
-          contract: t.contractAddress || t.contract || "",
+          contract: REWARD_NFT_ADDR || "",
         }));
         setAvailableNfts(mapped);
       } catch (error) {
