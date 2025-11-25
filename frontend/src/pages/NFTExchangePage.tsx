@@ -416,6 +416,19 @@ function EscrowQuickPanel() {
   const [deposits, setDeposits] = useState<
     { id: string; owner: string; nft: string; tokenId: string; active: boolean }[]
   >([]);
+  const [bulkIds, setBulkIds] = useState("");
+
+  const refreshDeposits = async (ids: string[]) => {
+    const signer = await (async () => {
+      try {
+        return await getSigner();
+      } catch {
+        return null;
+      }
+    })();
+    const provider = signer ?? null;
+    if (!provider) return;
+  };
 
   const runTx = async (action: string, fn: () => Promise<any>) => {
     setIsRunning(true);
@@ -569,7 +582,164 @@ function EscrowQuickPanel() {
           ) : null}
         </div>
       </div>
+      <KnownDepositsSection
+        deposits={deposits}
+        setDeposits={setDeposits}
+        swapTargetId={swapTargetId}
+        setSwapTargetId={setSwapTargetId}
+        runTx={runTx}
+        setBulkIds={setBulkIds}
+        bulkIds={bulkIds}
+      />
     </section>
+  );
+}
+
+function truncate(addr: string) {
+  if (!addr) return "";
+  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+}
+
+type DepositRow = { id: string; owner: string; nft: string; tokenId: string; active: boolean };
+
+function KnownDepositsSection({
+  deposits,
+  setDeposits,
+  swapTargetId,
+  setSwapTargetId,
+  runTx,
+  bulkIds,
+  setBulkIds,
+}: {
+  deposits: DepositRow[];
+  setDeposits: React.Dispatch<React.SetStateAction<DepositRow[]>>;
+  swapTargetId: string;
+  setSwapTargetId: (id: string) => void;
+  runTx: (action: string, fn: () => Promise<any>) => Promise<void>;
+  bulkIds: string;
+  setBulkIds: (s: string) => void;
+}) {
+  const { showToast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
+
+  const fetchDeposits = async (ids: string[]) => {
+    setIsLoading(true);
+    try {
+      const results: DepositRow[] = [];
+      for (const id of ids) {
+        const trimmed = id.trim();
+        if (!trimmed) continue;
+        try {
+          const res = await getDeposit(trimmed);
+          results.push({
+            id: trimmed,
+            owner: res.owner,
+            nft: res.nft,
+            tokenId: res.tokenId.toString(),
+            active: res.active,
+          });
+        } catch (error: any) {
+          console.error("fetch deposit failed", error);
+          showToast({
+            title: `Fetch failed for ${trimmed}`,
+            description: error?.shortMessage || error?.message || "Unknown error",
+            variant: "error",
+          });
+        }
+      }
+      if (results.length) {
+        setDeposits((prev) => {
+          const map = new Map(prev.map((d) => [d.id, d]));
+          results.forEach((r) => map.set(r.id, r));
+          return Array.from(map.values()).sort((a, b) => Number(a.id) - Number(b.id));
+        });
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFetch = () => {
+    const ids = bulkIds.split(",").map((s) => s.trim()).filter(Boolean);
+    if (ids.length === 0) {
+      showToast({ title: "No deposit IDs", description: "Enter at least one deposit ID", variant: "error" });
+      return;
+    }
+    fetchDeposits(ids);
+  };
+
+  return (
+    <div className="known-deposits">
+      <div className="known-deposits__header">
+        <div>
+          <p className="escrow-quick-panel__eyebrow">Listings (on-chain fetch)</p>
+          <h3>Known Deposits</h3>
+          <p className="escrow-quick-panel__note">
+            Enter deposit IDs to view status. Swap uses the quick panel above (sets target automatically).
+          </p>
+        </div>
+        <div className="known-deposits__controls">
+          <input
+            className="escrow-input"
+            placeholder="e.g. 1,2,3"
+            value={bulkIds}
+            onChange={(e) => setBulkIds(e.target.value)}
+          />
+          <button className="escrow-button" type="button" onClick={handleFetch} disabled={isLoading}>
+            {isLoading ? "Fetching..." : "Fetch IDs"}
+          </button>
+        </div>
+      </div>
+      <div className="known-deposits__grid">
+        {deposits.length === 0 ? (
+          <div className="known-deposits__empty">No deposits loaded yet. Fetch by ID above.</div>
+        ) : (
+          deposits.map((d) => (
+            <div className="known-deposits__card" key={d.id}>
+              <div className="known-deposits__row">
+                <span className="known-deposits__label">ID</span>
+                <strong>#{d.id}</strong>
+              </div>
+              <div className="known-deposits__row">
+                <span className="known-deposits__label">Owner</span>
+                <span className="escrow-table__mono">{truncate(d.owner)}</span>
+              </div>
+              <div className="known-deposits__row">
+                <span className="known-deposits__label">NFT</span>
+                <span className="escrow-table__mono">{truncate(d.nft)}</span>
+              </div>
+              <div className="known-deposits__row">
+                <span className="known-deposits__label">Token</span>
+                <span>{d.tokenId}</span>
+              </div>
+              <div className="known-deposits__status">
+                <span className={d.active ? "escrow-status--active" : "escrow-status--closed"}>
+                  {d.active ? "ACTIVE" : "CLOSED"}
+                </span>
+              </div>
+              <div className="known-deposits__actions">
+                <button
+                  type="button"
+                  className="escrow-button escrow-button--ghost"
+                  onClick={() => setSwapTargetId(d.id)}
+                >
+                  Set target for swap
+                </button>
+                <button
+                  type="button"
+                  className="escrow-button"
+                  disabled={!d.active}
+                  onClick={() => runTx("Withdraw", () => withdrawFromEscrow(d.id))}
+                >
+                  Withdraw
+                </button>
+              </div>
+              {swapTargetId === d.id ? <p className="known-deposits__note">Swap target selected ↑</p> : null}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
   );
 }
 

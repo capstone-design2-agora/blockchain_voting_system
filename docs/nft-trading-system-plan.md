@@ -39,10 +39,11 @@ Remaining: reentrancy attempt test, non-ERC721 address revert test, transfer fai
 1. ✅ Added config key for escrow contract address + basic form UI on `/nft-exchange`.
 2. ✅ Ethers client helper for `deposit`, `swap`, `withdraw` (Metamask signer) + ABI bundled.
 3. ✅ Quick panel (Deposit/Swap/Withdraw inputs) wired to on-chain calls with toast feedback; includes risk warning.
-4. TODO Build listing grid: show `depositId`, owner short address/ENS, NFT metadata, status (from API or on-chain).
-5. TODO Swap modal with wallet NFT picker; disable if target not active.
-6. TODO Withdraw action for my active deposits (hook into listing grid state).
-7. TODO Better empty/error handling and data refresh loop post-tx.
+4. ✅ Added on-chain “Lookup Deposit” table + known deposits cards; can set swap target and withdraw if active.
+5. TODO Build listing grid with NFT metadata (fetch from API/indexer or chain) instead of manual ID entry.
+6. TODO Swap modal with wallet NFT picker; disable if target not active.
+7. TODO Withdraw action via listing grid (owner-only UX) and proper error display.
+8. TODO Better empty/error handling and auto-refresh after tx/events.
 
 ### Phase C — Optional Indexer + Supabase Cache
 1. Supabase tables already exist:

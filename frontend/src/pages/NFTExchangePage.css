@@ -805,6 +805,89 @@
   font-weight: 700;
 }
 
+.known-deposits {
+  margin-top: 20px;
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  padding: 16px;
+  background: #0b1020;
+}
+
+.known-deposits__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-end;
+  margin-bottom: 12px;
+}
+
+.known-deposits__controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.escrow-input {
+  background: #111827;
+  border: 1px solid #1f2937;
+  color: #e5e7eb;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.known-deposits__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.known-deposits__card {
+  border: 1px solid #1f2937;
+  border-radius: 10px;
+  padding: 12px;
+  background: #0f172a;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.known-deposits__row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #cbd5e1;
+}
+
+.known-deposits__label {
+  color: #94a3b8;
+}
+
+.known-deposits__status {
+  margin-top: 4px;
+}
+
+.known-deposits__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.known-deposits__note {
+  font-size: 12px;
+  color: #8b5cf6;
+  margin: 4px 0 0 0;
+}
+
+.known-deposits__empty {
+  padding: 20px;
+  border: 1px dashed #1f2937;
+  border-radius: 10px;
+  text-align: center;
+  color: #94a3b8;
+}
+
 @media (max-width: 768px) {
   .nft-exchange-header-content {
     flex-direction: column;
