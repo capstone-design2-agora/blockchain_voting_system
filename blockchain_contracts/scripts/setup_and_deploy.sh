@@ -12,6 +12,7 @@ FRONTEND_DIR="${PROJECT_ROOT}/frontend"
 FRONTEND_ABI_DIR="${FRONTEND_DIR}/src/abi"
 FRONTEND_ENV_EXAMPLE="${FRONTEND_DIR}/.env.example"
 FRONTEND_ENV_LOCAL="${FRONTEND_DIR}/.env.local"
+SIMPLE_ESCROW_DEPLOY_JSON="${ARTIFACTS_DIR}/escrow_deployment.json"
 # Optional deployment metadata overrides are read from deploy.env.
 DEPLOY_ENV_FILE="${BLOCKCHAIN_CONTRACTS_DIR}/deploy.env"
 DEPLOY_ENV_SOURCED="false"
@@ -135,6 +136,7 @@ sync_frontend_abi() {
     local sbt_abi="${ARTIFACTS_DIR}/CitizenSBT.abi.json"
     local voting_abi="${ARTIFACTS_DIR}/VotingWithSBT.abi.json"
     local reward_abi="${ARTIFACTS_DIR}/VotingRewardNFT.abi.json"
+    local escrow_abi="${ARTIFACTS_DIR}/SimpleNFTEscrow.abi.json"
     
     if [[ ! -f "${sbt_abi}" ]] || [[ ! -f "${voting_abi}" ]] || [[ ! -f "${reward_abi}" ]]; then
         echo -e "${RED}✗ ABI files not found in ${ARTIFACTS_DIR}${NC}"
@@ -146,6 +148,9 @@ sync_frontend_abi() {
     cp "${sbt_abi}" "${FRONTEND_ABI_DIR}/CitizenSBT.json"
     cp "${voting_abi}" "${FRONTEND_ABI_DIR}/Voting.json"
     cp "${reward_abi}" "${FRONTEND_ABI_DIR}/VotingRewardNFT.json"
+    if [[ -f "${escrow_abi}" ]]; then
+        cp "${escrow_abi}" "${FRONTEND_ABI_DIR}/SimpleNFTEscrow.json"
+    fi
     echo -e "${GREEN}✓ ABIs synced to frontend at ${FRONTEND_ABI_DIR}${NC}"
 }
 
@@ -195,6 +200,7 @@ sync_frontend_env_files() {
     local voting_address="$2"
     local reward_nft_address="$3"
     local verifier_address="$4"
+    local escrow_address="$5"
 
     ensure_env_template
     ensure_env_file_exists "${FRONTEND_ENV_LOCAL}"
@@ -212,6 +218,7 @@ sync_frontend_env_files() {
     replace_or_append_env_key "${FRONTEND_ENV_LOCAL}" "REACT_APP_VOTING_CONTRACT_ADDRESS" "${voting_value}"
     replace_or_append_env_key "${FRONTEND_ENV_LOCAL}" "REACT_APP_REWARD_NFT_ADDRESS" "${reward_value}"
     replace_or_append_env_key "${FRONTEND_ENV_LOCAL}" "REACT_APP_VERIFIER_ADDRESS" "${verifier_value}"
+    replace_or_append_env_key "${FRONTEND_ENV_LOCAL}" "REACT_APP_SIMPLE_ESCROW_ADDRESS" "${escrow_address:-<escrow-address>}"
     replace_or_append_env_key "${FRONTEND_ENV_LOCAL}" "REACT_APP_PROPOSAL_NAMES" "${PROPOSALS:-}"
     replace_or_append_env_key "${FRONTEND_ENV_LOCAL}" "REACT_APP_PROPOSAL_PLEDGES" "${PLEDGES:-}"
 
@@ -223,6 +230,7 @@ update_frontend_config_json() {
     local voting_address="$2"
     local reward_nft_address="$3"
     local verifier_address="$4"
+    local escrow_address="$5"
     local config_file="${FRONTEND_DIR}/public/config.json"
 
     mkdir -p "$(dirname "${config_file}")"
@@ -233,6 +241,7 @@ update_frontend_config_json() {
   "CITIZEN_SBT_ADDRESS": "${citizen_sbt_address}",
   "VOTING_CONTRACT_ADDRESS": "${voting_address}",
   "REWARD_NFT_ADDRESS": "${reward_nft_address}",
+  "SIMPLE_ESCROW_ADDRESS": "${escrow_address}",
   "VERIFIER_ADDRESS": "${verifier_address}",
   "RPC_URL": "${DEFAULT_RPC_ENDPOINT}",
   "CHAIN_ID": "${DEFAULT_CHAIN_ID_HEX}",
@@ -451,6 +460,11 @@ else
     echo -e "\n${YELLOW}[6/6] Skipping deployment (contracts already exist)${NC}"
 fi
 
+echo -e "\n${YELLOW}[6b] Deploying SimpleNFTEscrow via Hardhat...${NC}"
+cd "${BLOCKCHAIN_CONTRACTS_DIR}"
+npx hardhat run scripts/deploy_simple_escrow.js --network localhost
+cd "${SCRIPT_DIR}"
+
 echo -e "\n${YELLOW}Syncing ABI with frontend...${NC}"
 sync_frontend_abi
 
@@ -458,12 +472,13 @@ CITIZEN_SBT_ADDRESS=$(node -p "try { require('${ARTIFACTS_DIR}/sbt_deployment.js
 VOTING_ADDRESS=$(node -p "try { require('${ARTIFACTS_DIR}/sbt_deployment.json').contracts.VotingWithSBT.address || '' } catch(e) { '' }")
 REWARD_NFT_ADDRESS=$(node -p "try { require('${ARTIFACTS_DIR}/sbt_deployment.json').contracts.VotingRewardNFT.address || '' } catch(e) { '' }")
 VERIFIER_ADDRESS=$(node -p "try { require('${ARTIFACTS_DIR}/sbt_deployment.json').contracts.CitizenSBT.verifier || '' } catch(e) { '' }")
+SIMPLE_ESCROW_ADDRESS=$(node -p "try { require('${ARTIFACTS_DIR}/escrow_deployment.json').address || '' } catch(e) { '' }")
 
 if [[ -z "${CITIZEN_SBT_ADDRESS}" ]]; then
     echo -e "${YELLOW}Deployment addresses not found. Frontend env files will contain placeholders until deployment succeeds.${NC}"
 fi
-sync_frontend_env_files "${CITIZEN_SBT_ADDRESS}" "${VOTING_ADDRESS}" "${REWARD_NFT_ADDRESS}" "${VERIFIER_ADDRESS}"
-update_frontend_config_json "${CITIZEN_SBT_ADDRESS}" "${VOTING_ADDRESS}" "${REWARD_NFT_ADDRESS}" "${VERIFIER_ADDRESS}"
+sync_frontend_env_files "${CITIZEN_SBT_ADDRESS}" "${VOTING_ADDRESS}" "${REWARD_NFT_ADDRESS}" "${VERIFIER_ADDRESS}" "${SIMPLE_ESCROW_ADDRESS}"
+update_frontend_config_json "${CITIZEN_SBT_ADDRESS}" "${VOTING_ADDRESS}" "${REWARD_NFT_ADDRESS}" "${VERIFIER_ADDRESS}" "${SIMPLE_ESCROW_ADDRESS}"
 
 # 완료
 echo -e "\n${GREEN}========================================${NC}"
@@ -479,6 +494,7 @@ fi
 echo -e "${GREEN}CitizenSBT:${NC} $(node -p "require('${ARTIFACTS_DIR}/sbt_deployment.json').contracts.CitizenSBT.address" 2>/dev/null || echo 'N/A')"
 echo -e "${GREEN}VotingWithSBT:${NC} $(node -p "require('${ARTIFACTS_DIR}/sbt_deployment.json').contracts.VotingWithSBT.address" 2>/dev/null || echo 'N/A')"
 echo -e "${GREEN}VotingRewardNFT:${NC} $(node -p "require('${ARTIFACTS_DIR}/sbt_deployment.json').contracts.VotingRewardNFT.address" 2>/dev/null || echo 'N/A')"
+echo -e "${GREEN}SimpleNFTEscrow:${NC} $(node -p "require('${ARTIFACTS_DIR}/escrow_deployment.json').address" 2>/dev/null || echo 'N/A')"
 echo -e "${GREEN}Artifacts:${NC} ${ARTIFACTS_DIR}"
 echo ""
 echo -e "${YELLOW}Next steps:${NC}"

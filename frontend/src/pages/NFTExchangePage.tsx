@@ -15,7 +15,9 @@ import useNFTTradingStore, { NFTTradingTab } from "../stores/nftTradingStore";
 import type { UserSummary } from "../types/nftTrading";
 import { checkHasSBT } from "../lib/sbt";
 import { useToast } from "../components/ToastProvider";
+import { depositToEscrow, swapOnEscrow, withdrawFromEscrow, getDeposit } from "../lib/escrow";
 import "./NFTExchangePage.css";
+import { ethers } from "ethers";
 
 interface TabConfig {
   key: NFTTradingTab;
@@ -270,6 +272,8 @@ export default function NFTExchangePage() {
       </header>
 
       <main className="nft-exchange-content">
+        <EscrowQuickPanel />
+
         <div className="nft-exchange-tabs">
           {TAB_CONFIG.map((tab) => (
             <TabButton
@@ -398,6 +402,563 @@ function SummaryStat({ label, value }: { label: string; value: string | number }
       <strong>{value}</strong>
     </div>
   );
+}
+
+function EscrowQuickPanel() {
+  const { showToast } = useToast();
+  const [depositNft, setDepositNft] = useState("");
+  const [depositTokenId, setDepositTokenId] = useState("");
+  const [swapTargetId, setSwapTargetId] = useState("");
+  const [swapNft, setSwapNft] = useState("");
+  const [swapTokenId, setSwapTokenId] = useState("");
+  const [withdrawId, setWithdrawId] = useState("");
+  const [isRunning, setIsRunning] = useState(false);
+  const [lookupId, setLookupId] = useState("");
+  const [deposits, setDeposits] = useState<
+    { id: string; owner: string; nft: string; tokenId: string; active: boolean }[]
+  >([]);
+  const [bulkIds, setBulkIds] = useState("");
+  const [swapModalOpen, setSwapModalOpen] = useState(false);
+  const [swapModalTarget, setSwapModalTarget] = useState<string | null>(null);
+
+  const refreshDeposits = async (ids: string[]) => {
+    const signer = await (async () => {
+      try {
+        return await getSigner();
+      } catch {
+        return null;
+      }
+    })();
+    const provider = signer ?? null;
+    if (!provider) return;
+  };
+
+  const refreshDeposit = async (id: string) => {
+    try {
+      const res = await getDeposit(id);
+      setDeposits((prev) => {
+        const map = new Map(prev.map((d) => [d.id, d]));
+        map.set(id, {
+          id,
+          owner: res.owner,
+          nft: res.nft,
+          tokenId: res.tokenId.toString(),
+          active: res.active,
+        });
+        return Array.from(map.values()).sort((a, b) => Number(a.id) - Number(b.id));
+      });
+    } catch (error) {
+      console.error("refresh deposit failed", error);
+    }
+  };
+
+  const runTx = async (action: string, fn: () => Promise<any>, after?: () => Promise<void>) => {
+    setIsRunning(true);
+    try {
+      const tx = await fn();
+      showToast({ title: `${action} tx sent`, description: tx.hash });
+      const receipt = await tx.wait();
+      showToast({ title: `${action} confirmed`, description: `Block ${receipt.blockNumber}` });
+      if (after) {
+        await after();
+      }
+    } catch (error: any) {
+      console.error(`${action} failed`, error);
+      showToast({
+        title: `${action} failed`,
+        description: error?.shortMessage || error?.message || "Unknown error",
+        variant: "error",
+      });
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
+  return (
+    <section className="escrow-quick-panel">
+      <div className="escrow-quick-panel__header">
+        <div>
+          <p className="escrow-quick-panel__eyebrow">Instant swap (no approval step)</p>
+          <h2>Escrow Quick Actions</h2>
+          <p className="escrow-quick-panel__note">Deposited NFTs can be taken instantly by anyone who swaps with their own NFT.</p>
+        </div>
+      </div>
+      <div className="escrow-quick-panel__grid">
+        <div className="escrow-card">
+          <h3>Deposit NFT</h3>
+          <label className="escrow-label">
+            NFT contract
+            <input value={depositNft} onChange={(e) => setDepositNft(e.target.value)} placeholder="0xabc..." />
+          </label>
+          <label className="escrow-label">
+            Token ID
+            <input value={depositTokenId} onChange={(e) => setDepositTokenId(e.target.value)} placeholder="e.g. 1" />
+          </label>
+          <button
+            type="button"
+            className="escrow-button"
+            disabled={isRunning || !depositNft || !depositTokenId}
+            onClick={() =>
+              runTx("Deposit", () => depositToEscrow(depositNft, depositTokenId), async () => {
+                // new deposit id is in event, but we don't parse here; user can lookup manually
+              })
+            }
+          >
+            {isRunning ? "Working..." : "Deposit"}
+          </button>
+        </div>
+
+        <div className="escrow-card">
+          <h3>Swap</h3>
+          <label className="escrow-label">
+            Target deposit ID
+            <input value={swapTargetId} onChange={(e) => setSwapTargetId(e.target.value)} placeholder="e.g. 1" />
+          </label>
+          <label className="escrow-label">
+            My NFT contract
+            <input value={swapNft} onChange={(e) => setSwapNft(e.target.value)} placeholder="0xabc..." />
+          </label>
+          <label className="escrow-label">
+            My token ID
+            <input value={swapTokenId} onChange={(e) => setSwapTokenId(e.target.value)} placeholder="e.g. 2" />
+          </label>
+          <button
+            type="button"
+            className="escrow-button"
+            disabled={isRunning || !swapTargetId || !swapNft || !swapTokenId}
+            onClick={() =>
+              runTx("Swap", () => swapOnEscrow(swapTargetId, swapNft, swapTokenId), async () => {
+                await refreshDeposit(swapTargetId);
+              })
+            }
+          >
+            {isRunning ? "Working..." : "Swap"}
+          </button>
+        </div>
+
+        <div className="escrow-card">
+          <h3>Withdraw</h3>
+          <label className="escrow-label">
+            Deposit ID
+            <input value={withdrawId} onChange={(e) => setWithdrawId(e.target.value)} placeholder="e.g. 3" />
+          </label>
+          <button
+            type="button"
+            className="escrow-button"
+            disabled={isRunning || !withdrawId}
+            onClick={() => runTx("Withdraw", () => withdrawFromEscrow(withdrawId), () => refreshDeposit(withdrawId))}
+          >
+            {isRunning ? "Working..." : "Withdraw"}
+          </button>
+        </div>
+
+        <div className="escrow-card escrow-card--wide">
+          <h3>Lookup Deposit</h3>
+          <label className="escrow-label">
+            Deposit ID
+            <input value={lookupId} onChange={(e) => setLookupId(e.target.value)} placeholder="e.g. 1" />
+          </label>
+          <button
+            type="button"
+            className="escrow-button"
+            disabled={isRunning || !lookupId}
+            onClick={() =>
+              runTx("Lookup", async () => {
+                const result = await getDeposit(lookupId);
+                setDeposits((prev) => {
+                  const next = prev.filter((d) => d.id !== lookupId);
+                  next.push({
+                    id: lookupId,
+                    owner: result.owner,
+                    nft: result.nft,
+                    tokenId: result.tokenId.toString(),
+                    active: result.active,
+                  });
+                  return next;
+                });
+                return { hash: "lookup" };
+              })
+            }
+          >
+            {isRunning ? "Working..." : "Fetch"}
+          </button>
+          {deposits.length > 0 ? (
+            <div className="escrow-table">
+              <div className="escrow-table__header">
+                <span>ID</span>
+                <span>NFT</span>
+                <span>Token</span>
+                <span>Status</span>
+                <span>Owner</span>
+                <span>Action</span>
+              </div>
+              {deposits.map((d) => (
+                <div className="escrow-table__row" key={d.id}>
+                  <span>{d.id}</span>
+                  <span className="escrow-table__mono">{d.nft}</span>
+                  <span>{d.tokenId}</span>
+                  <span className={d.active ? "escrow-status--active" : "escrow-status--closed"}>
+                    {d.active ? "ACTIVE" : "CLOSED"}
+                  </span>
+                  <span className="escrow-table__mono">{d.owner}</span>
+                  <button
+                    type="button"
+                    className="escrow-button escrow-button--ghost"
+                    disabled={!d.active || isRunning}
+                    onClick={() => runTx("Withdraw", () => withdrawFromEscrow(d.id), () => refreshDeposit(d.id))}
+                  >
+                    Withdraw
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
+      <KnownDepositsSection
+        deposits={deposits}
+        setDeposits={setDeposits}
+        swapTargetId={swapTargetId}
+        setSwapTargetId={setSwapTargetId}
+        runTx={runTx}
+        setBulkIds={setBulkIds}
+        bulkIds={bulkIds}
+        openSwapModal={(id) => {
+          setSwapTargetId(id);
+          setSwapModalTarget(id);
+          setSwapModalOpen(true);
+        }}
+      />
+      <SwapModal
+        open={swapModalOpen}
+        onClose={() => setSwapModalOpen(false)}
+        targetDepositId={swapModalTarget}
+        onSwap={async (targetId, nftAddr, tokenId) =>
+          runTx("Swap", () => swapOnEscrow(targetId, nftAddr, tokenId), async () => {
+            if (targetId) await refreshDeposit(targetId);
+          })
+        }
+      />
+    </section>
+  );
+}
+
+function truncate(addr: string) {
+  if (!addr) return "";
+  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+}
+
+type DepositRow = { id: string; owner: string; nft: string; tokenId: string; active: boolean };
+
+function KnownDepositsSection({
+  deposits,
+  setDeposits,
+  swapTargetId,
+  setSwapTargetId,
+  runTx,
+  bulkIds,
+  setBulkIds,
+  openSwapModal,
+}: {
+  deposits: DepositRow[];
+  setDeposits: React.Dispatch<React.SetStateAction<DepositRow[]>>;
+  swapTargetId: string;
+  setSwapTargetId: (id: string) => void;
+  runTx: (action: string, fn: () => Promise<any>) => Promise<void>;
+  bulkIds: string;
+  setBulkIds: (s: string) => void;
+  openSwapModal: (id: string) => void;
+}) {
+  const { showToast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
+  const [autoError, setAutoError] = useState<string | null>(null);
+
+  // Auto-refresh known deposits every 20s (on-chain fallback)
+  useEffect(() => {
+    if (deposits.length === 0) return;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const results: DepositRow[] = [];
+        for (const d of deposits) {
+          const res = await getDeposit(d.id);
+          results.push({
+            id: d.id,
+            owner: res.owner,
+            nft: res.nft,
+            tokenId: res.tokenId.toString(),
+            active: res.active,
+          });
+        }
+        if (!cancelled) {
+          setDeposits(
+            results.sort((a, b) => Number(a.id) - Number(b.id))
+          );
+          setAutoError(null);
+        }
+      } catch (error: any) {
+        if (!cancelled) {
+          const message = error?.shortMessage || error?.message || "Auto-refresh failed";
+          setAutoError(message);
+        }
+      }
+    };
+
+    const interval = window.setInterval(refresh, 20000);
+    refresh();
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [deposits, setDeposits]);
+
+  const fetchDeposits = async (ids: string[]) => {
+    setIsLoading(true);
+    try {
+      const results: DepositRow[] = [];
+      for (const id of ids) {
+        const trimmed = id.trim();
+        if (!trimmed) continue;
+        try {
+          const res = await getDeposit(trimmed);
+          results.push({
+            id: trimmed,
+            owner: res.owner,
+            nft: res.nft,
+            tokenId: res.tokenId.toString(),
+            active: res.active,
+          });
+        } catch (error: any) {
+          console.error("fetch deposit failed", error);
+          showToast({
+            title: `Fetch failed for ${trimmed}`,
+            description: error?.shortMessage || error?.message || "Unknown error",
+            variant: "error",
+          });
+        }
+      }
+      if (results.length) {
+        setDeposits((prev) => {
+          const map = new Map(prev.map((d) => [d.id, d]));
+          results.forEach((r) => map.set(r.id, r));
+          return Array.from(map.values()).sort((a, b) => Number(a.id) - Number(b.id));
+        });
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFetch = () => {
+    const ids = bulkIds.split(",").map((s) => s.trim()).filter(Boolean);
+    if (ids.length === 0) {
+      showToast({ title: "No deposit IDs", description: "Enter at least one deposit ID", variant: "error" });
+      return;
+    }
+    fetchDeposits(ids);
+  };
+
+  return (
+    <div className="known-deposits">
+      <div className="known-deposits__header">
+        <div>
+          <p className="escrow-quick-panel__eyebrow">Listings (on-chain fetch)</p>
+          <h3>Known Deposits</h3>
+          <p className="escrow-quick-panel__note">
+            Enter deposit IDs to view status. Swap uses the quick panel above (sets target automatically).
+          </p>
+          {autoError ? <p className="known-deposits__error">Auto-refresh error: {autoError}</p> : null}
+        </div>
+        <div className="known-deposits__controls">
+          <input
+            className="escrow-input"
+            placeholder="e.g. 1,2,3"
+            value={bulkIds}
+            onChange={(e) => setBulkIds(e.target.value)}
+          />
+          <button className="escrow-button" type="button" onClick={handleFetch} disabled={isLoading}>
+            {isLoading ? "Fetching..." : "Fetch IDs"}
+          </button>
+        </div>
+      </div>
+      <div className="known-deposits__grid">
+        {deposits.length === 0 ? (
+          <div className="known-deposits__empty">No deposits loaded yet. Fetch by ID above.</div>
+        ) : (
+          deposits.map((d) => (
+            <div className="known-deposits__card" key={d.id}>
+              <div className="known-deposits__row">
+                <span className="known-deposits__label">ID</span>
+                <strong>#{d.id}</strong>
+              </div>
+              <div className="known-deposits__row">
+                <span className="known-deposits__label">Owner</span>
+                <span className="escrow-table__mono">{truncate(d.owner)}</span>
+              </div>
+              <div className="known-deposits__row">
+                <span className="known-deposits__label">NFT</span>
+                <span className="escrow-table__mono">{truncate(d.nft)}</span>
+              </div>
+              <div className="known-deposits__row">
+                <span className="known-deposits__label">Token</span>
+                <span>{d.tokenId}</span>
+              </div>
+              <div className="known-deposits__status">
+                <span className={d.active ? "escrow-status--active" : "escrow-status--closed"}>
+                  {d.active ? "ACTIVE" : "CLOSED"}
+                </span>
+              </div>
+              <div className="known-deposits__actions">
+                <button
+                  type="button"
+                  className="escrow-button escrow-button--ghost"
+                  onClick={() => setSwapTargetId(d.id)}
+                >
+                  Set target for swap
+                </button>
+                <button
+                  type="button"
+                  className="escrow-button"
+                  onClick={() => openSwapModal(d.id)}
+                  disabled={!d.active}
+                >
+                  Swap with my NFT
+                </button>
+                <button
+                  type="button"
+                  className="escrow-button"
+                  disabled={!d.active}
+                  onClick={() => runTx("Withdraw", () => withdrawFromEscrow(d.id))}
+                >
+                  Withdraw
+                </button>
+              </div>
+              {swapTargetId === d.id ? <p className="known-deposits__note">Swap target selected ↑</p> : null}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SwapModal({
+  open,
+  onClose,
+  targetDepositId,
+  onSwap,
+}: {
+  open: boolean;
+  onClose: () => void;
+  targetDepositId: string | null;
+  onSwap: (targetId: string, nft: string, tokenId: string) => Promise<void>;
+}) {
+  const { showToast } = useToast();
+  const [nft, setNft] = useState("");
+  const [tokenId, setTokenId] = useState("");
+  const [metadata, setMetadata] = useState<{ name?: string; image?: string; tokenURI?: string } | null>(null);
+  const [loadingMeta, setLoadingMeta] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      setMetadata(null);
+      setNft("");
+      setTokenId("");
+    }
+  }, [open]);
+
+  const fetchMetadata = async () => {
+    if (!nft || !tokenId) {
+      showToast({ title: "Enter contract & token", description: "Fill both fields first", variant: "error" });
+      return;
+    }
+    setLoadingMeta(true);
+    try {
+      const provider = new ethers.BrowserProvider((window as any).ethereum);
+      const erc721 = new ethers.Contract(
+        nft,
+        ["function tokenURI(uint256) view returns (string)"],
+        provider
+      );
+      const uri = await erc721.tokenURI(tokenId);
+      const meta = await fetch(resolveIpfs(uri)).then((r) => r.json());
+      setMetadata({ name: meta.name, image: resolveIpfs(meta.image || ""), tokenURI: uri });
+    } catch (error: any) {
+      console.error("metadata fetch failed", error);
+      showToast({
+        title: "Failed to fetch tokenURI",
+        description: error?.shortMessage || error?.message || "Unknown error",
+        variant: "error",
+      });
+      setMetadata(null);
+    } finally {
+      setLoadingMeta(false);
+    }
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="swap-modal-backdrop" role="dialog" aria-modal="true">
+      <div className="swap-modal">
+        <div className="swap-modal__header">
+          <div>
+            <p className="escrow-quick-panel__eyebrow">Swap modal</p>
+            <h3>Swap with your NFT</h3>
+            <p className="escrow-quick-panel__note">
+              Target deposit: {targetDepositId ? `#${targetDepositId}` : "None selected"}
+            </p>
+          </div>
+          <button className="swap-modal__close" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </div>
+        <div className="swap-modal__body">
+          <label className="escrow-label">
+            My NFT contract
+            <input value={nft} onChange={(e) => setNft(e.target.value)} placeholder="0x..." />
+          </label>
+          <label className="escrow-label">
+            My token ID
+            <input value={tokenId} onChange={(e) => setTokenId(e.target.value)} placeholder="e.g. 1" />
+          </label>
+          <div className="swap-modal__actions">
+            <button type="button" className="escrow-button escrow-button--ghost" onClick={fetchMetadata} disabled={loadingMeta}>
+              {loadingMeta ? "Loading..." : "Fetch tokenURI"}
+            </button>
+            <button
+              type="button"
+              className="escrow-button"
+              disabled={!targetDepositId || !nft || !tokenId}
+              onClick={() => {
+                if (!targetDepositId) return;
+                onSwap(targetDepositId, nft, tokenId).then(onClose);
+              }}
+            >
+              Swap now
+            </button>
+          </div>
+          {metadata ? (
+            <div className="swap-meta">
+              <p className="escrow-quick-panel__note">tokenURI: {metadata.tokenURI}</p>
+              <p className="swap-meta__title">{metadata.name}</p>
+              {metadata.image ? (
+                <img src={metadata.image} alt={metadata.name || "token image"} className="swap-meta__image" />
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function resolveIpfs(uri: string) {
+  if (!uri) return uri;
+  if (uri.startsWith("ipfs://")) {
+    return uri.replace("ipfs://", "https://ipfs.io/ipfs/");
+  }
+  return uri;
 }
 
 function formatTimestamp(timestamp?: string | null) {
