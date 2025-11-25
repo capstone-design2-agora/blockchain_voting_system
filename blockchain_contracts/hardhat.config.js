@@ -7,5 +7,10 @@ module.exports = {
     tests: "./tests",
     cache: "./hardhat/cache",
     artifacts: "./hardhat/artifacts"
+  },
+  networks: {
+    localhost: {
+      url: "http://127.0.0.1:9545"
+    }
   }
 };

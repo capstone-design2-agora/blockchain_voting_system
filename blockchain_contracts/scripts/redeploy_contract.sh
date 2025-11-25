@@ -221,7 +221,29 @@ if [ $? -eq 0 ]; then
 }
 EOF
         echo "✅ config.json 업데이트 완료"
-        
+        # 인덱서 env 파일 작성 (기존 값 우선 유지)
+        INDEXER_ENV_FILE="../scripts/indexer.env"
+        read_env_var() {
+            local file="$1"; local key="$2"; local fallback="$3"
+            if [ -f "$file" ] && grep -q "^${key}=" "$file"; then
+                grep "^${key}=" "$file" | head -n1 | cut -d '=' -f2-
+            else
+                echo "$fallback"
+            fi
+        }
+        EXISTING_SUPABASE_URL=$(read_env_var "$INDEXER_ENV_FILE" "SUPABASE_URL" "${SUPABASE_URL:-<supabase-url>}")
+        EXISTING_SUPABASE_KEY=$(read_env_var "$INDEXER_ENV_FILE" "SUPABASE_SERVICE_KEY" "${SUPABASE_SERVICE_KEY:-<supabase-service-key>}")
+
+        cat > "$INDEXER_ENV_FILE" <<EOF
+# Escrow indexer environment
+RPC_URL=http://localhost:9545
+SIMPLE_ESCROW_ADDRESS=${ESCROW:-<escrow-address>}
+SUPABASE_URL=${EXISTING_SUPABASE_URL}
+SUPABASE_SERVICE_KEY=${EXISTING_SUPABASE_KEY}
+# Optional: START_BLOCK=0
+EOF
+        echo "✅ indexer.env 업데이트 완료"
+
         echo "💡 SBT 시스템 테스트:"
         echo "  node verify_sbt.js              # SBT 발급 테스트"
         echo "  node test_vote_with_sbt.js      # SBT 투표 테스트"

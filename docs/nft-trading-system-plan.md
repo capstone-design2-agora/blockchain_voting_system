@@ -50,11 +50,14 @@ Remaining: reentrancy attempt test, non-ERC721 address revert test, transfer fai
    - `deposits` (bigint id PK, owner_wallet, nft_contract, token_id, status ENUM ['ACTIVE','WITHDRAWN'], tx_hash, timestamps, indexes + updated_at trigger).
    - `swap_events` (uuid PK, initiator, counterparty, my_deposit_id, target_deposit_id, tx_hash, created_at, indexes on deposits + created_at).
    Use them as the canonical cache; no new migration needed unless schema changes.
-2. Build lightweight Node worker: subscribe to `Deposited/Swapped/Withdrawn`, upsert `deposits`, insert `swap_events` for swaps, track last processed block.
-   - Reorg/resume: persist last processed block in a small table/json; reprocess with idempotent upserts.
-   - Mapping rules: `Deposited` → upsert status ACTIVE; `Swapped` → set both deposits status CLOSED (see note below), insert swap_events; `Withdrawn` → set status WITHDRAWN.
-3. Expose read-only API endpoints hitting Supabase: `GET /nft-trading/deposits`, `GET /nft-trading/deposits/:id`, `GET /nft-trading/swap-events` with pagination; public read (no auth); basic rate limit.
-4. Frontend: if API available, prefer API for listing and recent swaps; fallback to on-chain polling if not.
+2. ✅ Lightweight Node worker added (`scripts/escrow_indexer.js`): polls `Deposited/Swapped/Withdrawn`, upserts `deposits`, inserts `swap_events`, tracks last processed block in `scripts/.escrow_indexer_state.json`. Env: `RPC_URL`, `SIMPLE_ESCROW_ADDRESS`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, optional `START_BLOCK`.
+   - Mapping rules: `Deposited` → status ACTIVE; `Swapped` → set both deposits CLOSED, insert swap_events; `Withdrawn` → status WITHDRAWN.
+   - Reorg handling minimal (single cursor); future: add block confirmations/replay table if needed.
+3. ✅ Read-only API endpoints (Vercel functions):
+   - `GET /api/nft-trading/deposits?status=&owner=&limit=&cursor=` (created_at cursor pagination).
+   - `GET /api/nft-trading/swap-events?depositId=&limit=&cursor=` (filter by deposit involvement).
+   Both public, CORS open; consider rate limit in future.
+4. ✅ Frontend: market tab now pulls `getDeposits` for ACTIVE listings; mock wallet NFTs remain; listed items merged into feed. (Future: replace mock wallet fetch and add metadata.)
 
 ### Phase D — Ops
 1. Add `.env` entries: `RPC_URL`, `ESCROW_CONTRACT_ADDRESS`, optional `SUPABASE_URL/KEY`.

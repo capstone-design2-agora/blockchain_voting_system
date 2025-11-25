@@ -9,12 +9,13 @@ async function main() {
 
   const Escrow = await hre.ethers.getContractFactory("SimpleNFTEscrow");
   const escrow = await Escrow.deploy();
-  await escrow.deployed();
+  await escrow.waitForDeployment();
 
-  console.log("SimpleNFTEscrow deployed to:", escrow.address);
+  const escrowAddress = await escrow.getAddress();
+  console.log("SimpleNFTEscrow deployed to:", escrowAddress);
 
   const deployment = {
-    address: escrow.address,
+    address: escrowAddress,
     network: {
       chainId: (await hre.ethers.provider.getNetwork()).chainId.toString(),
       rpc: hre.network.config?.url || "unknown",

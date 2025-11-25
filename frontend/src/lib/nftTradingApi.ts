@@ -141,6 +141,48 @@ export async function getListings(params: ListingsQueryParams = {}): Promise<Lis
   };
 }
 
+// Escrow deposits (Supabase-backed)
+export interface Deposit {
+  id: string;
+  owner_wallet: string;
+  nft_contract: string;
+  token_id: string;
+  status: string;
+  tx_hash: string | null;
+  created_at: string;
+}
+
+export interface DepositsResponse {
+  deposits: Deposit[];
+  nextCursor: string | null;
+}
+
+export interface DepositsQueryParams {
+  status?: "ACTIVE" | "WITHDRAWN" | "CLOSED";
+  owner?: string;
+  limit?: number;
+  cursor?: string | null;
+}
+
+export function buildDepositsQuery(params: DepositsQueryParams = {}): string {
+  const searchParams = new URLSearchParams();
+  if (params.status) searchParams.set("status", params.status);
+  if (params.owner) searchParams.set("owner", params.owner);
+  if (typeof params.limit === "number") searchParams.set("limit", String(params.limit));
+  if (params.cursor) searchParams.set("cursor", params.cursor);
+  const query = searchParams.toString();
+  return query ? `?${query}` : "";
+}
+
+export async function getDeposits(params: DepositsQueryParams = {}): Promise<DepositsResponse> {
+  const query = buildDepositsQuery(params);
+  const data = await nftTradingFetch<DepositsResponse>(`/deposits${query}`);
+  return {
+    deposits: data.deposits ?? [],
+    nextCursor: data.nextCursor ?? null,
+  };
+}
+
 export async function getListingProposals(listingId: string, cursor?: string): Promise<ProposalsResponse> {
   const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
   const data = await nftTradingFetch<RawProposalsResponse>(`/listings/${listingId}/proposals${query}`);
