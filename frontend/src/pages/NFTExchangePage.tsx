@@ -15,7 +15,7 @@ import useNFTTradingStore, { NFTTradingTab } from "../stores/nftTradingStore";
 import type { UserSummary } from "../types/nftTrading";
 import { checkHasSBT } from "../lib/sbt";
 import { useToast } from "../components/ToastProvider";
-import { depositToEscrow, swapOnEscrow, withdrawFromEscrow } from "../lib/escrow";
+import { depositToEscrow, swapOnEscrow, withdrawFromEscrow, getDeposit } from "../lib/escrow";
 import "./NFTExchangePage.css";
 
 interface TabConfig {
@@ -412,6 +412,10 @@ function EscrowQuickPanel() {
   const [swapTokenId, setSwapTokenId] = useState("");
   const [withdrawId, setWithdrawId] = useState("");
   const [isRunning, setIsRunning] = useState(false);
+  const [lookupId, setLookupId] = useState("");
+  const [deposits, setDeposits] = useState<
+    { id: string; owner: string; nft: string; tokenId: string; active: boolean }[]
+  >([]);
 
   const runTx = async (action: string, fn: () => Promise<any>) => {
     setIsRunning(true);
@@ -500,6 +504,69 @@ function EscrowQuickPanel() {
           >
             {isRunning ? "Working..." : "Withdraw"}
           </button>
+        </div>
+
+        <div className="escrow-card escrow-card--wide">
+          <h3>Lookup Deposit</h3>
+          <label className="escrow-label">
+            Deposit ID
+            <input value={lookupId} onChange={(e) => setLookupId(e.target.value)} placeholder="e.g. 1" />
+          </label>
+          <button
+            type="button"
+            className="escrow-button"
+            disabled={isRunning || !lookupId}
+            onClick={() =>
+              runTx("Lookup", async () => {
+                const result = await getDeposit(lookupId);
+                setDeposits((prev) => {
+                  const next = prev.filter((d) => d.id !== lookupId);
+                  next.push({
+                    id: lookupId,
+                    owner: result.owner,
+                    nft: result.nft,
+                    tokenId: result.tokenId.toString(),
+                    active: result.active,
+                  });
+                  return next;
+                });
+                return { hash: "lookup" };
+              })
+            }
+          >
+            {isRunning ? "Working..." : "Fetch"}
+          </button>
+          {deposits.length > 0 ? (
+            <div className="escrow-table">
+              <div className="escrow-table__header">
+                <span>ID</span>
+                <span>NFT</span>
+                <span>Token</span>
+                <span>Status</span>
+                <span>Owner</span>
+                <span>Action</span>
+              </div>
+              {deposits.map((d) => (
+                <div className="escrow-table__row" key={d.id}>
+                  <span>{d.id}</span>
+                  <span className="escrow-table__mono">{d.nft}</span>
+                  <span>{d.tokenId}</span>
+                  <span className={d.active ? "escrow-status--active" : "escrow-status--closed"}>
+                    {d.active ? "ACTIVE" : "CLOSED"}
+                  </span>
+                  <span className="escrow-table__mono">{d.owner}</span>
+                  <button
+                    type="button"
+                    className="escrow-button escrow-button--ghost"
+                    disabled={!d.active || isRunning}
+                    onClick={() => runTx("Withdraw", () => withdrawFromEscrow(d.id))}
+                  >
+                    Withdraw
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
       </div>
     </section>

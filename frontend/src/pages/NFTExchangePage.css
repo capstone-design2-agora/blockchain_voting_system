@@ -738,6 +738,10 @@
   font-size: 14px;
 }
 
+.escrow-card--wide {
+  grid-column: span 2;
+}
+
 .escrow-button {
   margin-top: 6px;
   background: linear-gradient(135deg, #2563eb, #7c3aed);
@@ -752,6 +756,53 @@
 .escrow-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.escrow-button--ghost {
+  background: transparent;
+  border: 1px solid #374151;
+}
+
+.escrow-table {
+  margin-top: 10px;
+  border: 1px solid #1f2937;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.escrow-table__header,
+.escrow-table__row {
+  display: grid;
+  grid-template-columns: 70px 1.2fr 0.6fr 0.6fr 1.2fr 120px;
+  gap: 8px;
+  padding: 8px 10px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.escrow-table__header {
+  background: #111827;
+  color: #cbd5e1;
+  font-weight: 600;
+}
+
+.escrow-table__row:nth-child(odd) {
+  background: #0e1629;
+}
+
+.escrow-table__mono {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 12px;
+}
+
+.escrow-status--active {
+  color: #34d399;
+  font-weight: 700;
+}
+
+.escrow-status--closed {
+  color: #f87171;
+  font-weight: 700;
 }
 
 @media (max-width: 768px) {
