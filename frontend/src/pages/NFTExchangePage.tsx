@@ -11,6 +11,7 @@ import { getRewardNFTs, REWARD_NFT_ADDR } from "../lib/sbt";
 import { getDeposits } from "../lib/nftTradingApi";
 import { getConfig } from "../lib/config";
 import RewardAbi from "../abi/VotingRewardNFT.json";
+import EscrowAbi from "../abi/SimpleNFTEscrow.json";
 import { ethers } from "ethers";
 import "./NFTExchangePage.css";
 
@@ -20,7 +21,11 @@ try {
 } catch {
   SIMPLE_ESCROW_ADDRESS = "";
 }
-const ERC721_ABI = ["function tokenURI(uint256 tokenId) view returns (string)"];
+const ERC721_ABI = [
+  "function tokenURI(uint256 tokenId) view returns (string)",
+  "function isApprovedForAll(address owner, address operator) view returns (bool)",
+  "function setApprovalForAll(address operator, bool approved)",
+];
 
 type NftCardData = {
   id: string;
@@ -189,8 +194,7 @@ export default function NFTExchangePage() {
                 imageUrl = url;
               }
             }
-          } catch (parseError) {
-            console.warn("Failed to parse response for", d.contract, d.tokenId, parseError);
+          } catch {
             imageUrl = url;
           }
           if (imageUrl) {
@@ -200,8 +204,8 @@ export default function NFTExchangePage() {
           if (nftName) {
             updatedNames[cacheKey] = nftName;
           }
-        } catch (err) {
-          console.warn("Failed to hydrate metadata for", d.contract, d.tokenId, err);
+        } catch {
+          /* ignore hydration failures */
         }
       })
     );
@@ -338,7 +342,7 @@ export default function NFTExchangePage() {
         const mapped: NftCardData[] = tokens.map((t) => ({
           id: String(t.tokenId),
           ownerWallet: detectedWallet || undefined,
-          name: `Reward NFT #${t.tokenId}`,
+          name: t.metadata?.name || `Reward NFT #${t.tokenId}`,
           image: t.imageUrl || "",
           rarity: "Reward",
           tokenId: String(t.tokenId),
@@ -430,22 +434,35 @@ export default function NFTExchangePage() {
       if (!escrowAddress) {
         throw new Error("SIMPLE_ESCROW_ADDRESS not loaded");
       }
+
       const provider = new ethers.BrowserProvider((window as any).ethereum);
       const signer = await provider.getSigner();
+      const signerAddress = await signer.getAddress();
+
       const reward = new ethers.Contract(REWARD_NFT_ADDR, (RewardAbi as any).abi || RewardAbi, signer);
-      const isApproved = await reward.isApprovedForAll(await signer.getAddress(), escrowAddress);
+
+      const owner = await reward.ownerOf(nft.tokenId);
+
+      if (owner.toLowerCase() !== signerAddress.toLowerCase()) {
+        throw new Error(`You don't own this NFT. Owner: ${owner}, You: ${signerAddress}`);
+      }
+
+      const isApproved = await reward.isApprovedForAll(signerAddress, escrowAddress);
+
       if (!isApproved) {
         const approveTx = await reward.setApprovalForAll(escrowAddress, true);
         showToast({ title: "승인 중...", description: approveTx.hash });
         await approveTx.wait();
       }
+
       const { depositId } = await depositToEscrow(nft.contract, nft.tokenId);
+
       if (!depositId) {
         throw new Error("Deposited but depositId not found in receipt");
       }
       setAvailableNfts((prev) => prev.filter((n) => n.id !== nft.id));
       const depositIdStr = depositId.toString();
-      const ownerAddress = (await signer.getAddress()) || detectedWallet || undefined;
+      const ownerAddress = signerAddress || detectedWallet || undefined;
       setListedNfts((prev) => [
         ...prev,
         { ...nft, id: depositIdStr, depositId: depositIdStr, ownerWallet: ownerAddress, badge: "LISTED" },
@@ -546,6 +563,31 @@ export default function NFTExchangePage() {
     if (!swapTarget) return;
     setSwapLoading(true);
     try {
+      // Pre-check that the target deposit is still active to avoid revert
+      const cfg = getConfig();
+      const escrowAddress = cfg.SIMPLE_ESCROW_ADDRESS;
+      if (!escrowAddress) {
+        throw new Error("SIMPLE_ESCROW_ADDRESS가 비어 있습니다. config.json을 확인하세요.");
+      }
+      const provider = resolveProvider();
+      const escrow = new ethers.Contract(escrowAddress, (EscrowAbi as any).abi || EscrowAbi, provider);
+      const targetDeposit = await escrow.deposits(swapTarget.id);
+      const isActive = Boolean((targetDeposit as any)?.active ?? (targetDeposit as any)?.[3]);
+      if (!isActive) {
+        throw new Error("이 매물은 이미 스왑되었거나 철회되었습니다. 새로고침 후 다른 매물을 선택하세요.");
+      }
+
+      // Ensure escrow is approved to transfer my NFT
+      const browserProvider = new ethers.BrowserProvider((window as any).ethereum);
+      const signer = await browserProvider.getSigner();
+      const erc721 = new ethers.Contract(myNft.contract, ERC721_ABI, signer);
+      const isApproved = await erc721.isApprovedForAll(await signer.getAddress(), escrowAddress);
+      if (!isApproved) {
+        const approveTx = await erc721.setApprovalForAll(escrowAddress, true);
+        showToast({ title: "승인 중...", description: approveTx.hash });
+        await approveTx.wait();
+      }
+
       await swapOnEscrow(swapTarget.id, myNft.contract, myNft.tokenId);
       showToast({ title: "스왑 성공", description: `${swapTarget.name} ↔ ${myNft.name}` });
       setAvailableNfts((prev) => prev.filter((n) => n.id !== myNft.id));
@@ -555,9 +597,17 @@ export default function NFTExchangePage() {
       await refreshMarket();
     } catch (error: any) {
       console.error("swap failed", error);
+      const data = (error?.data as string) || (error?.info?.error?.data as string) || "";
+      const isInactive = typeof data === "string" && data.startsWith("0xc33e1367");
+      const description =
+        error?.shortMessage ||
+        (isInactive
+          ? "이미 스왑/철회된 매물입니다. 새로고침 후 다른 매물을 선택하세요."
+          : error?.message) ||
+        "Unknown error";
       showToast({
         title: "스왑 실패",
-        description: error?.shortMessage || error?.message || "Unknown error",
+        description,
         variant: "error",
       });
     } finally {
@@ -934,39 +984,41 @@ function SwapPicker({
   loading: boolean;
 }) {
   return (
-    <div className="swap-picker">
-      <div className="swap-picker__header">
-        <div>
-          <p className="nft-subtitle">스왑 대상</p>
-          <h3>{target.name}</h3>
-          <p className="nft-hint">내 NFT를 선택해 즉시 스왑합니다.</p>
+    <div className="swap-picker-overlay" onClick={onClose}>
+      <div className="swap-picker" onClick={(e) => e.stopPropagation()}>
+        <div className="swap-picker__header">
+          <div>
+            <p className="nft-subtitle">스왑 대상</p>
+            <h3>{target.name}</h3>
+            <p className="nft-hint">내 NFT를 선택해 즉시 스왑합니다.</p>
+          </div>
+          <button className="swap-picker__close" onClick={onClose} aria-label="닫기">
+            ×
+          </button>
         </div>
-        <button className="swap-picker__close" onClick={onClose} aria-label="닫기">
-          ×
-        </button>
-      </div>
-      <div className="swap-picker__list">
-        {myNfts.length === 0 ? (
-          <div className="nft-grid-empty">스왑할 내 NFT가 없습니다.</div>
-        ) : (
-          myNfts.map((nft) => (
-            <div key={nft.id} className="swap-picker__item">
-              <div className="swap-picker__info">
-                <img src={nft.image} alt={nft.name} />
-                <div>
-                  <p className="swap-picker__title">{nft.name}</p>
-                  <p className="nft-card__meta">
-                    Token #{nft.tokenId} · <span className="mono">{nft.contract}</span>
-                  </p>
+        <div className="swap-picker__list">
+          {myNfts.length === 0 ? (
+            <div className="nft-grid-empty">스왑할 내 NFT가 없습니다.</div>
+          ) : (
+            myNfts.map((nft) => (
+              <div key={nft.id} className="swap-picker__item">
+                <div className="swap-picker__info">
+                  <img src={nft.image} alt={nft.name} />
+                  <div>
+                    <p className="swap-picker__title">{nft.name}</p>
+                    <p className="nft-card__meta">
+                      Token #{nft.tokenId} · <span className="mono">{nft.contract}</span>
+                    </p>
+                  </div>
                 </div>
+                <button className="nft-exchange-button" disabled={loading} onClick={() => onSwap(nft)}>
+                  <ArrowRight size={16} />
+                  <span>이 NFT로 스왑</span>
+                </button>
               </div>
-              <button className="nft-exchange-button" disabled={loading} onClick={() => onSwap(nft)}>
-                <ArrowRight size={16} />
-                <span>이 NFT로 스왑</span>
-              </button>
-            </div>
-          ))
-        )}
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

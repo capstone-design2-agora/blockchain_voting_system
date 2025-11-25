@@ -78,25 +78,16 @@ export default function MyNFTsPage() {
     }, [redirectToVerification]);
 
     const handleDisconnect = async () => {
-        console.log("🔌 연결 해제 시작...");
-
         try {
             // 최신 MetaMask에서 지원하는 wallet_revokePermissions 시도
             if ((window as any).ethereum) {
-                console.log("📡 MetaMask 감지됨, wallet_revokePermissions 시도...");
-
                 try {
                     const result = await (window as any).ethereum.request({
                         method: 'wallet_revokePermissions',
                         params: [{ eth_accounts: {} }]
                     });
-                    console.log("✓ 지갑 연결 권한이 성공적으로 취소되었습니다.", result);
                 } catch (revokeError: any) {
                     // wallet_revokePermissions를 지원하지 않는 경우
-                    console.warn("⚠️ wallet_revokePermissions 실패:", revokeError);
-                    console.log("에러 코드:", revokeError.code);
-                    console.log("에러 메시지:", revokeError.message);
-
                     // 사용자에게 수동 연결 해제 안내
                     if (!window.confirm(
                         "지갑 연결을 해제하시겠습니까?\n\n" +
@@ -106,21 +97,16 @@ export default function MyNFTsPage() {
                         "2. 연결된 사이트 관리\n" +
                         "3. 이 사이트 연결 해제"
                     )) {
-                        console.log("❌ 사용자가 연결 해제를 취소했습니다.");
                         return; // 사용자가 취소한 경우
                     }
                 }
-            } else {
-                console.warn("⚠️ MetaMask를 찾을 수 없습니다.");
             }
 
             // 로컬 세션 데이터 정리
-            console.log("🧹 세션 데이터 정리 중...");
             sessionStorage.clear();
             localStorage.removeItem("walletAddress");
 
             // Auth 페이지로 이동
-            console.log("🏠 Auth 페이지로 이동");
             redirectToVerification();
         } catch (error) {
             console.error("❌ Disconnect error:", error);

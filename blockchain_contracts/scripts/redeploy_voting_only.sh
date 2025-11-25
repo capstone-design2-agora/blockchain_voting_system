@@ -11,6 +11,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONTRACTS_DIR="$(realpath "${SCRIPT_DIR}/..")"
 PROJECT_ROOT="$(realpath "${CONTRACTS_DIR}/..")"
 ARTIFACT_PATH="${CONTRACTS_DIR}/artifacts/sbt_deployment.json"
+ESCROW_ARTIFACT_PATH="${CONTRACTS_DIR}/artifacts/escrow_deployment.json"
 FRONTEND_DIR="${CONTRACTS_DIR}/../frontend"
 FRONTEND_ENV="${FRONTEND_DIR}/.env.local"
 
@@ -101,6 +102,7 @@ VOTING_ADDRESS=$(node -pe "JSON.parse(require('fs').readFileSync('$ARTIFACT_PATH
 SBT_ADDRESS=$(node -pe "JSON.parse(require('fs').readFileSync('$ARTIFACT_PATH','utf8')).contracts.CitizenSBT.address")
 REWARD_ADDRESS=$(node -pe "JSON.parse(require('fs').readFileSync('$ARTIFACT_PATH','utf8')).contracts.VotingRewardNFT.address")
 VERIFIER_ADDRESS=$(node -pe "try { JSON.parse(require('fs').readFileSync('$ARTIFACT_PATH','utf8')).contracts.CitizenSBT.verifier } catch(e) { '' }")
+ESCROW_ADDRESS=$(node -pe "try { JSON.parse(require('fs').readFileSync('$ESCROW_ARTIFACT_PATH','utf8')).address } catch(e) { '' }")
 
 echo "📍 신규 VotingWithSBT 주소: $VOTING_ADDRESS"
 echo ""
@@ -111,6 +113,11 @@ if [ -f "$FRONTEND_ENV" ]; then
   sed -i "s|^REACT_APP_VOTING_CONTRACT_ADDRESS=.*|REACT_APP_VOTING_CONTRACT_ADDRESS=$VOTING_ADDRESS|" "$FRONTEND_ENV"
   sed -i "s|^REACT_APP_CITIZEN_SBT_ADDRESS=.*|REACT_APP_CITIZEN_SBT_ADDRESS=$SBT_ADDRESS|" "$FRONTEND_ENV"
   sed -i "s|^REACT_APP_REWARD_NFT_ADDRESS=.*|REACT_APP_REWARD_NFT_ADDRESS=$REWARD_ADDRESS|" "$FRONTEND_ENV"
+  if grep -q "^REACT_APP_SIMPLE_ESCROW_ADDRESS=" "$FRONTEND_ENV"; then
+    sed -i "s|^REACT_APP_SIMPLE_ESCROW_ADDRESS=.*|REACT_APP_SIMPLE_ESCROW_ADDRESS=${ESCROW_ADDRESS:-<escrow-address>}|" "$FRONTEND_ENV"
+  else
+    echo "REACT_APP_SIMPLE_ESCROW_ADDRESS=${ESCROW_ADDRESS:-<escrow-address>}" >> "$FRONTEND_ENV"
+  fi
   echo "✅ 프론트엔드 환경 변수 업데이트 완료"
   echo "  파일: $FRONTEND_ENV"
   echo ""
@@ -121,6 +128,14 @@ fi
 # 프론트엔드 config.json 업데이트
 CONFIG_FILE="${FRONTEND_DIR}/public/config.json"
 mkdir -p "$(dirname "$CONFIG_FILE")"
+# 기존 config에서 SIMPLE_ESCROW_ADDRESS가 비어 있고, artifact에도 없을 때는 기존 값을 유지
+if [ -z "$ESCROW_ADDRESS" ] && [ -f "$CONFIG_FILE" ]; then
+  ESCROW_ADDRESS=$(node -pe "try { JSON.parse(require('fs').readFileSync('$CONFIG_FILE','utf8')).SIMPLE_ESCROW_ADDRESS || '' } catch(e) { '' }")
+fi
+# 그래도 없으면 .env.local 값 사용
+if [ -z "$ESCROW_ADDRESS" ] && [ -f "$FRONTEND_ENV" ]; then
+  ESCROW_ADDRESS=$(grep "^REACT_APP_SIMPLE_ESCROW_ADDRESS=" "$FRONTEND_ENV" | head -n1 | cut -d= -f2-)
+fi
 
 echo "🔄 프론트엔드 config.json 업데이트 중..."
 cat > "$CONFIG_FILE" <<EOF
@@ -128,6 +143,7 @@ cat > "$CONFIG_FILE" <<EOF
   "CITIZEN_SBT_ADDRESS": "$SBT_ADDRESS",
   "VOTING_CONTRACT_ADDRESS": "$VOTING_ADDRESS",
   "REWARD_NFT_ADDRESS": "$REWARD_ADDRESS",
+  "SIMPLE_ESCROW_ADDRESS": "$ESCROW_ADDRESS",
   "VERIFIER_ADDRESS": "$VERIFIER_ADDRESS",
   "RPC_URL": "http://localhost:9545",
   "CHAIN_ID": "0x539",
