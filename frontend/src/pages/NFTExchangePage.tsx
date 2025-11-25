@@ -1,69 +1,23 @@
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  ArrowLeft,
-  ArrowLeftRight,
-  ClipboardCheck,
-  ClipboardList,
-  Loader2,
-  ShieldCheck,
-  Sparkles,
-} from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, Loader2, Upload, RotateCcw } from "lucide-react";
 import { useNavigate } from "react-router";
-import type { NavigateFunction } from "react-router";
 import useEmailVerificationStore from "../stores/emailVerificationStore";
-import useNFTTradingStore, { NFTTradingTab } from "../stores/nftTradingStore";
+import useNFTTradingStore from "../stores/nftTradingStore";
 import type { UserSummary } from "../types/nftTrading";
 import { checkHasSBT } from "../lib/sbt";
 import { useToast } from "../components/ToastProvider";
-import { depositToEscrow, swapOnEscrow, withdrawFromEscrow, getDeposit } from "../lib/escrow";
+import { depositToEscrow } from "../lib/escrow";
 import "./NFTExchangePage.css";
-import { ethers } from "ethers";
 
-interface TabConfig {
-  key: NFTTradingTab;
-  label: string;
-  description: string;
-  actionLabel?: string;
-}
-
-const TAB_CONFIG: TabConfig[] = [
-  {
-    key: "market",
-    label: "마켓",
-    description: "커뮤니티가 등록한 투표 NFT를 한눈에 탐색하세요.",
-    actionLabel: "필터 설정 예정",
-  },
-  {
-    key: "my-listings",
-    label: "내 Listing",
-    description: "등록한 NFT 현황, 잠금 상태, 진행 중인 거래를 확인합니다.",
-    actionLabel: "NFT 등록 흐름 준비중",
-  },
-  {
-    key: "proposals",
-    label: "받은 제안",
-    description: "내 NFT에 도착한 교환 제안을 승인/거절할 수 있어요.",
-    actionLabel: "의사결정 모달 준비중",
-  },
-];
-
-const PLACEHOLDER_CARDS = [
-  {
-    icon: <Sparkles size={20} />,
-    title: "교환 요청 관리",
-    subtitle: "제안 진척도를 실시간으로 확인 (준비중)",
-  },
-  {
-    icon: <ShieldCheck size={20} />,
-    title: "안전한 거래",
-    subtitle: "SBT 검증 기반 접근 제어 적용",
-  },
-  {
-    icon: <ClipboardList size={20} />,
-    title: "Listing 대시보드",
-    subtitle: "등록/잠금/완료 상태 추적 UI 작업 중",
-  },
-];
+type NftCardData = {
+  id: string;
+  name: string;
+  image: string;
+  rarity: string;
+  tokenId: string;
+  contract: string;
+  badge?: string;
+};
 
 export default function NFTExchangePage() {
   const navigate = useNavigate();
@@ -72,20 +26,16 @@ export default function NFTExchangePage() {
     walletAddress: verificationWallet,
     setWallet: setVerificationWallet,
   } = useEmailVerificationStore();
-  const {
-    activeTab,
-    setActiveTab,
-    setWalletAddress,
-    userSummary,
-    setUserSummary,
-    isUserSummaryLoading,
-    setUserSummaryLoading,
-  } = useNFTTradingStore();
+  const { setWalletAddress, userSummary, setUserSummary, isUserSummaryLoading, setUserSummaryLoading } =
+    useNFTTradingStore();
 
   const [detectedWallet, setDetectedWallet] = useState<string | null>(verificationWallet);
   const [isCheckingAccess, setIsCheckingAccess] = useState(true);
   const [accessGranted, setAccessGranted] = useState(false);
   const [accessError, setAccessError] = useState<"wallet" | "sbt" | "unknown" | null>(null);
+  const [availableNfts, setAvailableNfts] = useState<NftCardData[]>([]);
+  const [listedNfts, setListedNfts] = useState<NftCardData[]>([]);
+  const [listing, setListing] = useState(false);
 
   // Hydrate wallet state if user already connected MetaMask outside of this session
   useEffect(() => {
@@ -195,7 +145,7 @@ export default function NFTExchangePage() {
     setUserSummaryLoading(true);
     const timer = window.setTimeout(() => {
       setUserSummary({
-        totalListings: 0,
+        totalListings: listedNfts.length,
         pendingProposals: 0,
         lockedListings: 0,
         drafts: 0,
@@ -207,28 +157,77 @@ export default function NFTExchangePage() {
     return () => {
       window.clearTimeout(timer);
     };
-  }, [accessGranted, userSummary, isUserSummaryLoading, setUserSummary, setUserSummaryLoading]);
+  }, [accessGranted, userSummary, isUserSummaryLoading, setUserSummary, setUserSummaryLoading, listedNfts.length]);
 
-  const tabContent = useMemo(() => {
-    const initial: Record<NFTTradingTab, React.ReactNode> = {
-      market: null,
-      "my-listings": null,
-      proposals: null,
-    };
+  // Mock/load user NFTs (placeholder images)
+  useEffect(() => {
+    if (!accessGranted) return;
+    const mock: NftCardData[] = [
+      {
+        id: "1",
+        name: "Civic Badge #1",
+        image: "https://picsum.photos/seed/civic1/400/400",
+        rarity: "레전더리",
+        tokenId: "1",
+        contract: "0xabc...123",
+      },
+      {
+        id: "2",
+        name: "Civic Badge #2",
+        image: "https://picsum.photos/seed/civic2/400/400",
+        rarity: "에픽",
+        tokenId: "2",
+        contract: "0xabc...123",
+      },
+      {
+        id: "3",
+        name: "Civic Badge #3",
+        image: "https://picsum.photos/seed/civic3/400/400",
+        rarity: "레어",
+        tokenId: "3",
+        contract: "0xabc...123",
+      },
+      {
+        id: "4",
+        name: "Civic Badge #4",
+        image: "https://picsum.photos/seed/civic4/400/400",
+        rarity: "커먼",
+        tokenId: "4",
+        contract: "0xabc...123",
+      },
+    ];
+    setAvailableNfts(mock);
+  }, [accessGranted]);
 
-    return TAB_CONFIG.reduce<Record<NFTTradingTab, React.ReactNode>>((acc, tab) => {
-      acc[tab.key] = (
-        <TabPlaceholder
-          key={tab.key}
-          title={tab.label}
-          description={tab.description}
-          actionLabel={tab.actionLabel}
-          onAction={() => handleCTA(tab.key, navigate)}
-        />
-      );
-      return acc;
-    }, initial);
-  }, [navigate]);
+  const headerHint = useMemo(() => {
+    return "내 NFT를 선택해 바로 마켓에 올리고, 아래에서 올린 목록을 관리하세요.";
+  }, []);
+
+  const handleListToMarket = async (nft: NftCardData) => {
+    setListing(true);
+    try {
+      // In a real flow, call depositToEscrow. Here we just simulate success.
+      await depositToEscrow(nft.contract, nft.tokenId);
+      setAvailableNfts((prev) => prev.filter((n) => n.id !== nft.id));
+      setListedNfts((prev) => [...prev, { ...nft, badge: "LISTED" }]);
+      showToast({ title: "마켓에 올렸습니다", description: `${nft.name}이(가) 교환 대기열에 추가됨` });
+    } catch (error: any) {
+      console.error("listing failed", error);
+      showToast({
+        title: "예치 실패",
+        description: error?.shortMessage || error?.message || "Unknown error",
+        variant: "error",
+      });
+    } finally {
+      setListing(false);
+    }
+  };
+
+  const handleWithdraw = (nft: NftCardData) => {
+    setListedNfts((prev) => prev.filter((n) => n.id !== nft.id));
+    setAvailableNfts((prev) => [...prev, { ...nft, badge: undefined }]);
+    showToast({ title: "마켓에서 내렸습니다", description: `${nft.name}이(가) 다시 내 보관함으로 이동` });
+  };
 
   if (isCheckingAccess) {
     return <AccessLoadingState />;
@@ -252,8 +251,9 @@ export default function NFTExchangePage() {
               <ArrowLeftRight size={20} />
             </div>
             <div>
-              <p className="nft-subtitle">Phase 1 · 거래소 프레임워크</p>
-              <h1>커뮤니티 NFT 거래소</h1>
+              <p className="nft-subtitle">Escrow 기반 거래</p>
+              <h1>내 NFT를 마켓에 올리기</h1>
+              <p className="nft-hint">{headerHint}</p>
             </div>
           </div>
           <div className="nft-exchange-actions">
@@ -272,57 +272,46 @@ export default function NFTExchangePage() {
       </header>
 
       <main className="nft-exchange-content">
-        <EscrowQuickPanel />
-
-        <div className="nft-exchange-tabs">
-          {TAB_CONFIG.map((tab) => (
-            <TabButton
-              key={tab.key}
-              label={tab.label}
-              isActive={activeTab === tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              badge={tab.key === "proposals" ? userSummary?.pendingProposals ?? 0 : undefined}
-            />
-          ))}
-        </div>
-
-        <section className="nft-placeholder-grid">
-          {PLACEHOLDER_CARDS.map((card) => (
-            <article key={card.title} className="nft-placeholder-card">
-              <div className="nft-placeholder-icon">{card.icon}</div>
+        <section className="exchange-columns">
+          <div className="exchange-column">
+            <div className="exchange-column__header">
               <div>
-                <p className="nft-placeholder-title">{card.title}</p>
-                <p className="nft-placeholder-subtitle">{card.subtitle}</p>
+                <p className="nft-subtitle">내 NFT</p>
+                <h2>보유한 NFT 목록</h2>
+                <p className="nft-hint">사진 카드에서 선택해 “마켓에 올리기”를 누르면 아래 마켓 섹션으로 이동합니다.</p>
               </div>
-            </article>
-          ))}
-        </section>
-
-        <div className="nft-tab-panel" role="tabpanel">
-          {TAB_CONFIG.map((tab) => (
-            <div key={tab.key} hidden={activeTab !== tab.key} className="nft-tab-panel-content">
-              {activeTab === tab.key ? tabContent[tab.key] : null}
             </div>
-          ))}
-        </div>
+            <NftGrid
+              nfts={availableNfts}
+              emptyText="지갑에 표시할 NFT가 없습니다."
+              actionLabel={listing ? "처리 중..." : "마켓에 올리기"}
+              actionIcon={<Upload size={16} />}
+              onAction={handleListToMarket}
+              disabled={listing}
+            />
+          </div>
+
+          <div className="exchange-column">
+            <div className="exchange-column__header">
+              <div>
+                <p className="nft-subtitle">마켓 대기열</p>
+                <h2>마켓에 올라간 NFT</h2>
+                <p className="nft-hint">이 섹션의 카드는 이미 예치(escrow)된 것으로 가정합니다.</p>
+              </div>
+            </div>
+            <NftGrid
+              nfts={listedNfts}
+              emptyText="마켓에 올린 NFT가 없습니다."
+              actionLabel="내리기"
+              actionIcon={<RotateCcw size={16} />}
+              onAction={handleWithdraw}
+              badge="LISTED"
+            />
+          </div>
+        </section>
       </main>
     </div>
   );
-}
-
-function handleCTA(tab: NFTTradingTab, navigate: NavigateFunction) {
-  if (tab === "my-listings") {
-    navigate("/my-nfts");
-    return;
-  }
-
-  if (tab === "market") {
-    // Market CTA will later open composer; for now navigate home of trading section
-    navigate("/nft-exchange");
-    return;
-  }
-
-  navigate("/voting");
 }
 
 function AccessLoadingState() {
@@ -332,53 +321,6 @@ function AccessLoadingState() {
         <Loader2 size={32} className="spinner" />
         <p>거래소 접근 권한을 확인하는 중...</p>
       </div>
-    </div>
-  );
-}
-
-interface TabButtonProps {
-  label: string;
-  isActive: boolean;
-  onClick: () => void;
-  badge?: number;
-}
-
-function TabButton({ label, isActive, onClick, badge }: TabButtonProps) {
-  const showBadge = typeof badge === "number" && badge > 0;
-  return (
-    <button
-      className={`nft-tab-button ${isActive ? "nft-tab-button--active" : ""}`}
-      onClick={onClick}
-      type="button"
-    >
-      {label}
-      {showBadge ? <span className="nft-tab-badge">{badge}</span> : null}
-    </button>
-  );
-}
-
-interface TabPlaceholderProps {
-  title: string;
-  description: string;
-  actionLabel?: string;
-  onAction?: () => void;
-}
-
-function TabPlaceholder({ title, description, actionLabel, onAction }: TabPlaceholderProps) {
-  return (
-    <div className="tab-placeholder">
-      <div className="tab-placeholder-body">
-        <ClipboardCheck size={18} />
-        <div>
-          <p className="tab-placeholder-title">{title} 준비중</p>
-          <p className="tab-placeholder-description">{description}</p>
-        </div>
-      </div>
-      {actionLabel ? (
-        <button type="button" className="tab-placeholder-cta" onClick={onAction}>
-          {actionLabel}
-        </button>
-      ) : null}
     </div>
   );
 }
@@ -404,558 +346,57 @@ function SummaryStat({ label, value }: { label: string; value: string | number }
   );
 }
 
-function EscrowQuickPanel() {
-  const { showToast } = useToast();
-  const [depositNft, setDepositNft] = useState("");
-  const [depositTokenId, setDepositTokenId] = useState("");
-  const [swapTargetId, setSwapTargetId] = useState("");
-  const [swapNft, setSwapNft] = useState("");
-  const [swapTokenId, setSwapTokenId] = useState("");
-  const [withdrawId, setWithdrawId] = useState("");
-  const [isRunning, setIsRunning] = useState(false);
-  const [lookupId, setLookupId] = useState("");
-  const [deposits, setDeposits] = useState<
-    { id: string; owner: string; nft: string; tokenId: string; active: boolean }[]
-  >([]);
-  const [bulkIds, setBulkIds] = useState("");
-  const [swapModalOpen, setSwapModalOpen] = useState(false);
-  const [swapModalTarget, setSwapModalTarget] = useState<string | null>(null);
-
-  const refreshDeposit = async (id: string) => {
-    try {
-      const res = await getDeposit(id);
-      setDeposits((prev) => {
-        const map = new Map(prev.map((d) => [d.id, d]));
-        map.set(id, {
-          id,
-          owner: res.owner,
-          nft: res.nft,
-          tokenId: res.tokenId.toString(),
-          active: res.active,
-        });
-        return Array.from(map.values()).sort((a, b) => Number(a.id) - Number(b.id));
-      });
-    } catch (error) {
-      console.error("refresh deposit failed", error);
-    }
-  };
-
-  const runTx = async (action: string, fn: () => Promise<any>, after?: () => Promise<void>) => {
-    setIsRunning(true);
-    try {
-      const tx = await fn();
-      showToast({ title: `${action} tx sent`, description: tx.hash });
-      const receipt = await tx.wait();
-      showToast({ title: `${action} confirmed`, description: `Block ${receipt.blockNumber}` });
-      if (after) {
-        await after();
-      }
-    } catch (error: any) {
-      console.error(`${action} failed`, error);
-      showToast({
-        title: `${action} failed`,
-        description: error?.shortMessage || error?.message || "Unknown error",
-        variant: "error",
-      });
-    } finally {
-      setIsRunning(false);
-    }
-  };
-
-  return (
-    <section className="escrow-quick-panel">
-      <div className="escrow-quick-panel__header">
-        <div>
-          <p className="escrow-quick-panel__eyebrow">Instant swap (no approval step)</p>
-          <h2>Escrow Quick Actions</h2>
-          <p className="escrow-quick-panel__note">Deposited NFTs can be taken instantly by anyone who swaps with their own NFT.</p>
-        </div>
-      </div>
-      <div className="escrow-quick-panel__grid">
-        <div className="escrow-card">
-          <h3>Deposit NFT</h3>
-          <label className="escrow-label">
-            NFT contract
-            <input value={depositNft} onChange={(e) => setDepositNft(e.target.value)} placeholder="0xabc..." />
-          </label>
-          <label className="escrow-label">
-            Token ID
-            <input value={depositTokenId} onChange={(e) => setDepositTokenId(e.target.value)} placeholder="e.g. 1" />
-          </label>
-          <button
-            type="button"
-            className="escrow-button"
-            disabled={isRunning || !depositNft || !depositTokenId}
-            onClick={() =>
-              runTx("Deposit", () => depositToEscrow(depositNft, depositTokenId), async () => {
-                // new deposit id is in event, but we don't parse here; user can lookup manually
-              })
-            }
-          >
-            {isRunning ? "Working..." : "Deposit"}
-          </button>
-        </div>
-
-        <div className="escrow-card">
-          <h3>Swap</h3>
-          <label className="escrow-label">
-            Target deposit ID
-            <input value={swapTargetId} onChange={(e) => setSwapTargetId(e.target.value)} placeholder="e.g. 1" />
-          </label>
-          <label className="escrow-label">
-            My NFT contract
-            <input value={swapNft} onChange={(e) => setSwapNft(e.target.value)} placeholder="0xabc..." />
-          </label>
-          <label className="escrow-label">
-            My token ID
-            <input value={swapTokenId} onChange={(e) => setSwapTokenId(e.target.value)} placeholder="e.g. 2" />
-          </label>
-          <button
-            type="button"
-            className="escrow-button"
-            disabled={isRunning || !swapTargetId || !swapNft || !swapTokenId}
-            onClick={() =>
-              runTx("Swap", () => swapOnEscrow(swapTargetId, swapNft, swapTokenId), async () => {
-                await refreshDeposit(swapTargetId);
-              })
-            }
-          >
-            {isRunning ? "Working..." : "Swap"}
-          </button>
-        </div>
-
-        <div className="escrow-card">
-          <h3>Withdraw</h3>
-          <label className="escrow-label">
-            Deposit ID
-            <input value={withdrawId} onChange={(e) => setWithdrawId(e.target.value)} placeholder="e.g. 3" />
-          </label>
-          <button
-            type="button"
-            className="escrow-button"
-            disabled={isRunning || !withdrawId}
-            onClick={() => runTx("Withdraw", () => withdrawFromEscrow(withdrawId), () => refreshDeposit(withdrawId))}
-          >
-            {isRunning ? "Working..." : "Withdraw"}
-          </button>
-        </div>
-
-        <div className="escrow-card escrow-card--wide">
-          <h3>Lookup Deposit</h3>
-          <label className="escrow-label">
-            Deposit ID
-            <input value={lookupId} onChange={(e) => setLookupId(e.target.value)} placeholder="e.g. 1" />
-          </label>
-          <button
-            type="button"
-            className="escrow-button"
-            disabled={isRunning || !lookupId}
-            onClick={() =>
-              runTx("Lookup", async () => {
-                const result = await getDeposit(lookupId);
-                setDeposits((prev) => {
-                  const next = prev.filter((d) => d.id !== lookupId);
-                  next.push({
-                    id: lookupId,
-                    owner: result.owner,
-                    nft: result.nft,
-                    tokenId: result.tokenId.toString(),
-                    active: result.active,
-                  });
-                  return next;
-                });
-                return { hash: "lookup" };
-              })
-            }
-          >
-            {isRunning ? "Working..." : "Fetch"}
-          </button>
-          {deposits.length > 0 ? (
-            <div className="escrow-table">
-              <div className="escrow-table__header">
-                <span>ID</span>
-                <span>NFT</span>
-                <span>Token</span>
-                <span>Status</span>
-                <span>Owner</span>
-                <span>Action</span>
-              </div>
-              {deposits.map((d) => (
-                <div className="escrow-table__row" key={d.id}>
-                  <span>{d.id}</span>
-                  <span className="escrow-table__mono">{d.nft}</span>
-                  <span>{d.tokenId}</span>
-                  <span className={d.active ? "escrow-status--active" : "escrow-status--closed"}>
-                    {d.active ? "ACTIVE" : "CLOSED"}
-                  </span>
-                  <span className="escrow-table__mono">{d.owner}</span>
-                  <button
-                    type="button"
-                    className="escrow-button escrow-button--ghost"
-                    disabled={!d.active || isRunning}
-                    onClick={() => runTx("Withdraw", () => withdrawFromEscrow(d.id), () => refreshDeposit(d.id))}
-                  >
-                    Withdraw
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </div>
-      </div>
-      <KnownDepositsSection
-        deposits={deposits}
-        setDeposits={setDeposits}
-        swapTargetId={swapTargetId}
-        setSwapTargetId={setSwapTargetId}
-        runTx={runTx}
-        setBulkIds={setBulkIds}
-        bulkIds={bulkIds}
-        openSwapModal={(id) => {
-          setSwapTargetId(id);
-          setSwapModalTarget(id);
-          setSwapModalOpen(true);
-        }}
-      />
-      <SwapModal
-        open={swapModalOpen}
-        onClose={() => setSwapModalOpen(false)}
-        targetDepositId={swapModalTarget}
-        onSwap={async (targetId, nftAddr, tokenId) =>
-          runTx("Swap", () => swapOnEscrow(targetId, nftAddr, tokenId), async () => {
-            if (targetId) await refreshDeposit(targetId);
-          })
-        }
-      />
-    </section>
-  );
+function formatTimestamp(ts?: string | null) {
+  if (!ts) return "-";
+  const date = new Date(ts);
+  return date.toLocaleString();
 }
 
-function truncate(addr: string) {
-  if (!addr) return "";
-  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-}
-
-type DepositRow = { id: string; owner: string; nft: string; tokenId: string; active: boolean };
-
-function KnownDepositsSection({
-  deposits,
-  setDeposits,
-  swapTargetId,
-  setSwapTargetId,
-  runTx,
-  bulkIds,
-  setBulkIds,
-  openSwapModal,
+function NftGrid({
+  nfts,
+  emptyText,
+  actionLabel,
+  actionIcon,
+  onAction,
+  badge,
+  disabled,
 }: {
-  deposits: DepositRow[];
-  setDeposits: React.Dispatch<React.SetStateAction<DepositRow[]>>;
-  swapTargetId: string;
-  setSwapTargetId: (id: string) => void;
-  runTx: (action: string, fn: () => Promise<any>) => Promise<void>;
-  bulkIds: string;
-  setBulkIds: (s: string) => void;
-  openSwapModal: (id: string) => void;
+  nfts: NftCardData[];
+  emptyText: string;
+  actionLabel: string;
+  actionIcon: React.ReactNode;
+  onAction: (nft: NftCardData) => void;
+  badge?: string;
+  disabled?: boolean;
 }) {
-  const { showToast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
-  const [autoError, setAutoError] = useState<string | null>(null);
-
-  // Auto-refresh known deposits every 20s (on-chain fallback)
-  useEffect(() => {
-    if (deposits.length === 0) return;
-    let cancelled = false;
-    const refresh = async () => {
-      try {
-        const results: DepositRow[] = [];
-        for (const d of deposits) {
-          const res = await getDeposit(d.id);
-          results.push({
-            id: d.id,
-            owner: res.owner,
-            nft: res.nft,
-            tokenId: res.tokenId.toString(),
-            active: res.active,
-          });
-        }
-        if (!cancelled) {
-          setDeposits(
-            results.sort((a, b) => Number(a.id) - Number(b.id))
-          );
-          setAutoError(null);
-        }
-      } catch (error: any) {
-        if (!cancelled) {
-          const message = error?.shortMessage || error?.message || "Auto-refresh failed";
-          setAutoError(message);
-        }
-      }
-    };
-
-    const interval = window.setInterval(refresh, 20000);
-    refresh();
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
-  }, [deposits, setDeposits]);
-
-  const fetchDeposits = async (ids: string[]) => {
-    setIsLoading(true);
-    try {
-      const results: DepositRow[] = [];
-      for (const id of ids) {
-        const trimmed = id.trim();
-        if (!trimmed) continue;
-        try {
-          const res = await getDeposit(trimmed);
-          results.push({
-            id: trimmed,
-            owner: res.owner,
-            nft: res.nft,
-            tokenId: res.tokenId.toString(),
-            active: res.active,
-          });
-        } catch (error: any) {
-          console.error("fetch deposit failed", error);
-          showToast({
-            title: `Fetch failed for ${trimmed}`,
-            description: error?.shortMessage || error?.message || "Unknown error",
-            variant: "error",
-          });
-        }
-      }
-      if (results.length) {
-        setDeposits((prev) => {
-          const map = new Map(prev.map((d) => [d.id, d]));
-          results.forEach((r) => map.set(r.id, r));
-          return Array.from(map.values()).sort((a, b) => Number(a.id) - Number(b.id));
-        });
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleFetch = () => {
-    const ids = bulkIds.split(",").map((s) => s.trim()).filter(Boolean);
-    if (ids.length === 0) {
-      showToast({ title: "No deposit IDs", description: "Enter at least one deposit ID", variant: "error" });
-      return;
-    }
-    fetchDeposits(ids);
-  };
-
+  if (nfts.length === 0) {
+    return <div className="nft-grid-empty">{emptyText}</div>;
+  }
   return (
-    <div className="known-deposits">
-      <div className="known-deposits__header">
-        <div>
-          <p className="escrow-quick-panel__eyebrow">Listings (on-chain fetch)</p>
-          <h3>Known Deposits</h3>
-          <p className="escrow-quick-panel__note">
-            Enter deposit IDs to view status. Swap uses the quick panel above (sets target automatically).
-          </p>
-          {autoError ? <p className="known-deposits__error">Auto-refresh error: {autoError}</p> : null}
-        </div>
-        <div className="known-deposits__controls">
-          <input
-            className="escrow-input"
-            placeholder="e.g. 1,2,3"
-            value={bulkIds}
-            onChange={(e) => setBulkIds(e.target.value)}
-          />
-          <button className="escrow-button" type="button" onClick={handleFetch} disabled={isLoading}>
-            {isLoading ? "Fetching..." : "Fetch IDs"}
-          </button>
-        </div>
-      </div>
-      <div className="known-deposits__grid">
-        {deposits.length === 0 ? (
-          <div className="known-deposits__empty">No deposits loaded yet. Fetch by ID above.</div>
-        ) : (
-          deposits.map((d) => (
-            <div className="known-deposits__card" key={d.id}>
-              <div className="known-deposits__row">
-                <span className="known-deposits__label">ID</span>
-                <strong>#{d.id}</strong>
-              </div>
-              <div className="known-deposits__row">
-                <span className="known-deposits__label">Owner</span>
-                <span className="escrow-table__mono">{truncate(d.owner)}</span>
-              </div>
-              <div className="known-deposits__row">
-                <span className="known-deposits__label">NFT</span>
-                <span className="escrow-table__mono">{truncate(d.nft)}</span>
-              </div>
-              <div className="known-deposits__row">
-                <span className="known-deposits__label">Token</span>
-                <span>{d.tokenId}</span>
-              </div>
-              <div className="known-deposits__status">
-                <span className={d.active ? "escrow-status--active" : "escrow-status--closed"}>
-                  {d.active ? "ACTIVE" : "CLOSED"}
-                </span>
-              </div>
-              <div className="known-deposits__actions">
-                <button
-                  type="button"
-                  className="escrow-button escrow-button--ghost"
-                  onClick={() => setSwapTargetId(d.id)}
-                >
-                  Set target for swap
-                </button>
-                <button
-                  type="button"
-                  className="escrow-button"
-                  onClick={() => openSwapModal(d.id)}
-                  disabled={!d.active}
-                >
-                  Swap with my NFT
-                </button>
-                <button
-                  type="button"
-                  className="escrow-button"
-                  disabled={!d.active}
-                  onClick={() => runTx("Withdraw", () => withdrawFromEscrow(d.id))}
-                >
-                  Withdraw
-                </button>
-              </div>
-              {swapTargetId === d.id ? <p className="known-deposits__note">Swap target selected ↑</p> : null}
-            </div>
-          ))
-        )}
-      </div>
-    </div>
-  );
-}
-
-function SwapModal({
-  open,
-  onClose,
-  targetDepositId,
-  onSwap,
-}: {
-  open: boolean;
-  onClose: () => void;
-  targetDepositId: string | null;
-  onSwap: (targetId: string, nft: string, tokenId: string) => Promise<void>;
-}) {
-  const { showToast } = useToast();
-  const [nft, setNft] = useState("");
-  const [tokenId, setTokenId] = useState("");
-  const [metadata, setMetadata] = useState<{ name?: string; image?: string; tokenURI?: string } | null>(null);
-  const [loadingMeta, setLoadingMeta] = useState(false);
-
-  useEffect(() => {
-    if (!open) {
-      setMetadata(null);
-      setNft("");
-      setTokenId("");
-    }
-  }, [open]);
-
-  const fetchMetadata = async () => {
-    if (!nft || !tokenId) {
-      showToast({ title: "Enter contract & token", description: "Fill both fields first", variant: "error" });
-      return;
-    }
-    setLoadingMeta(true);
-    try {
-      const provider = new ethers.BrowserProvider((window as any).ethereum);
-      const erc721 = new ethers.Contract(
-        nft,
-        ["function tokenURI(uint256) view returns (string)"],
-        provider
-      );
-      const uri = await erc721.tokenURI(tokenId);
-      const meta = await fetch(resolveIpfs(uri)).then((r) => r.json());
-      setMetadata({ name: meta.name, image: resolveIpfs(meta.image || ""), tokenURI: uri });
-    } catch (error: any) {
-      console.error("metadata fetch failed", error);
-      showToast({
-        title: "Failed to fetch tokenURI",
-        description: error?.shortMessage || error?.message || "Unknown error",
-        variant: "error",
-      });
-      setMetadata(null);
-    } finally {
-      setLoadingMeta(false);
-    }
-  };
-
-  if (!open) return null;
-
-  return (
-    <div className="swap-modal-backdrop" role="dialog" aria-modal="true">
-      <div className="swap-modal">
-        <div className="swap-modal__header">
-          <div>
-            <p className="escrow-quick-panel__eyebrow">Swap modal</p>
-            <h3>Swap with your NFT</h3>
-            <p className="escrow-quick-panel__note">
-              Target deposit: {targetDepositId ? `#${targetDepositId}` : "None selected"}
+    <div className="nft-card-grid">
+      {nfts.map((nft) => (
+        <article key={nft.id} className="nft-card">
+          <div className="nft-card__image">
+            <img src={nft.image} alt={nft.name} />
+            <span className="nft-chip">{nft.rarity}</span>
+            {badge ? <span className="nft-chip nft-chip--secondary">{badge}</span> : null}
+          </div>
+          <div className="nft-card__body">
+            <p className="nft-card__title">{nft.name}</p>
+            <p className="nft-card__meta">
+              Token #{nft.tokenId} · <span className="mono">{nft.contract}</span>
             </p>
-          </div>
-          <button className="swap-modal__close" onClick={onClose} aria-label="Close">
-            ×
-          </button>
-        </div>
-        <div className="swap-modal__body">
-          <label className="escrow-label">
-            My NFT contract
-            <input value={nft} onChange={(e) => setNft(e.target.value)} placeholder="0x..." />
-          </label>
-          <label className="escrow-label">
-            My token ID
-            <input value={tokenId} onChange={(e) => setTokenId(e.target.value)} placeholder="e.g. 1" />
-          </label>
-          <div className="swap-modal__actions">
-            <button type="button" className="escrow-button escrow-button--ghost" onClick={fetchMetadata} disabled={loadingMeta}>
-              {loadingMeta ? "Loading..." : "Fetch tokenURI"}
-            </button>
             <button
-              type="button"
-              className="escrow-button"
-              disabled={!targetDepositId || !nft || !tokenId}
-              onClick={() => {
-                if (!targetDepositId) return;
-                onSwap(targetDepositId, nft, tokenId).then(onClose);
-              }}
+              className="nft-exchange-button nft-exchange-button--full"
+              onClick={() => onAction(nft)}
+              disabled={disabled}
             >
-              Swap now
+              {actionIcon}
+              <span>{actionLabel}</span>
             </button>
           </div>
-          {metadata ? (
-            <div className="swap-meta">
-              <p className="escrow-quick-panel__note">tokenURI: {metadata.tokenURI}</p>
-              <p className="swap-meta__title">{metadata.name}</p>
-              {metadata.image ? (
-                <img src={metadata.image} alt={metadata.name || "token image"} className="swap-meta__image" />
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      </div>
+        </article>
+      ))}
     </div>
   );
-}
-
-function resolveIpfs(uri: string) {
-  if (!uri) return uri;
-  if (uri.startsWith("ipfs://")) {
-    return uri.replace("ipfs://", "https://ipfs.io/ipfs/");
-  }
-  return uri;
-}
-
-function formatTimestamp(timestamp?: string | null) {
-  if (!timestamp) {
-    return "대기 중";
-  }
-  const date = new Date(timestamp);
-  return `${date.getHours().toString().padStart(2, "0")}:${date
-    .getMinutes()
-    .toString()
-    .padStart(2, "0")}`;
 }
