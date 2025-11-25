@@ -221,7 +221,18 @@ if [ $? -eq 0 ]; then
 }
 EOF
         echo "✅ config.json 업데이트 완료"
-        
+        # 인덱서 env 파일 작성
+        INDEXER_ENV_FILE="../scripts/indexer.env"
+        cat > "$INDEXER_ENV_FILE" <<EOF
+# Escrow indexer environment
+RPC_URL=http://localhost:9545
+SIMPLE_ESCROW_ADDRESS=${ESCROW:-<escrow-address>}
+SUPABASE_URL=${SUPABASE_URL:-<supabase-url>}
+SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY:-<supabase-service-key>}
+# Optional: START_BLOCK=0
+EOF
+        echo "✅ indexer.env 업데이트 완료"
+
         echo "💡 SBT 시스템 테스트:"
         echo "  node verify_sbt.js              # SBT 발급 테스트"
         echo "  node test_vote_with_sbt.js      # SBT 투표 테스트"
