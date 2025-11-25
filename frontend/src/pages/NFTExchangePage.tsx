@@ -430,13 +430,35 @@ function EscrowQuickPanel() {
     if (!provider) return;
   };
 
-  const runTx = async (action: string, fn: () => Promise<any>) => {
+  const refreshDeposit = async (id: string) => {
+    try {
+      const res = await getDeposit(id);
+      setDeposits((prev) => {
+        const map = new Map(prev.map((d) => [d.id, d]));
+        map.set(id, {
+          id,
+          owner: res.owner,
+          nft: res.nft,
+          tokenId: res.tokenId.toString(),
+          active: res.active,
+        });
+        return Array.from(map.values()).sort((a, b) => Number(a.id) - Number(b.id));
+      });
+    } catch (error) {
+      console.error("refresh deposit failed", error);
+    }
+  };
+
+  const runTx = async (action: string, fn: () => Promise<any>, after?: () => Promise<void>) => {
     setIsRunning(true);
     try {
       const tx = await fn();
       showToast({ title: `${action} tx sent`, description: tx.hash });
       const receipt = await tx.wait();
       showToast({ title: `${action} confirmed`, description: `Block ${receipt.blockNumber}` });
+      if (after) {
+        await after();
+      }
     } catch (error: any) {
       console.error(`${action} failed`, error);
       showToast({
@@ -473,7 +495,11 @@ function EscrowQuickPanel() {
             type="button"
             className="escrow-button"
             disabled={isRunning || !depositNft || !depositTokenId}
-            onClick={() => runTx("Deposit", () => depositToEscrow(depositNft, depositTokenId))}
+            onClick={() =>
+              runTx("Deposit", () => depositToEscrow(depositNft, depositTokenId), async () => {
+                // new deposit id is in event, but we don't parse here; user can lookup manually
+              })
+            }
           >
             {isRunning ? "Working..." : "Deposit"}
           </button>
@@ -497,7 +523,11 @@ function EscrowQuickPanel() {
             type="button"
             className="escrow-button"
             disabled={isRunning || !swapTargetId || !swapNft || !swapTokenId}
-            onClick={() => runTx("Swap", () => swapOnEscrow(swapTargetId, swapNft, swapTokenId))}
+            onClick={() =>
+              runTx("Swap", () => swapOnEscrow(swapTargetId, swapNft, swapTokenId), async () => {
+                await refreshDeposit(swapTargetId);
+              })
+            }
           >
             {isRunning ? "Working..." : "Swap"}
           </button>
@@ -513,7 +543,7 @@ function EscrowQuickPanel() {
             type="button"
             className="escrow-button"
             disabled={isRunning || !withdrawId}
-            onClick={() => runTx("Withdraw", () => withdrawFromEscrow(withdrawId))}
+            onClick={() => runTx("Withdraw", () => withdrawFromEscrow(withdrawId), () => refreshDeposit(withdrawId))}
           >
             {isRunning ? "Working..." : "Withdraw"}
           </button>
@@ -572,7 +602,7 @@ function EscrowQuickPanel() {
                     type="button"
                     className="escrow-button escrow-button--ghost"
                     disabled={!d.active || isRunning}
-                    onClick={() => runTx("Withdraw", () => withdrawFromEscrow(d.id))}
+                    onClick={() => runTx("Withdraw", () => withdrawFromEscrow(d.id), () => refreshDeposit(d.id))}
                   >
                     Withdraw
                   </button>

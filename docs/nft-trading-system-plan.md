@@ -40,10 +40,10 @@ Remaining: reentrancy attempt test, non-ERC721 address revert test, transfer fai
 2. ✅ Ethers client helper for `deposit`, `swap`, `withdraw` (Metamask signer) + ABI bundled.
 3. ✅ Quick panel (Deposit/Swap/Withdraw inputs) wired to on-chain calls with toast feedback; includes risk warning.
 4. ✅ Added on-chain “Lookup Deposit” table + known deposits cards; can set swap target and withdraw if active.
-5. TODO Build listing grid with NFT metadata (fetch from API/indexer or chain) instead of manual ID entry.
+5. ✅ Listing grid (known deposits cards) with swap-target selection and withdraw actions; refreshes status after tx.
 6. TODO Swap modal with wallet NFT picker; disable if target not active.
-7. TODO Withdraw action via listing grid (owner-only UX) and proper error display.
-8. TODO Better empty/error handling and auto-refresh after tx/events.
+7. TODO Pull NFT metadata (tokenURI) when possible; currently address/token only.
+8. TODO Better empty/error handling and auto-refresh via API/indexer when available.
 
 ### Phase C — Optional Indexer + Supabase Cache
 1. Supabase tables already exist:
