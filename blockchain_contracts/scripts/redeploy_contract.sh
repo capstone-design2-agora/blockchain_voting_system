@@ -138,6 +138,14 @@ if [ $? -eq 0 ]; then
         REWARD_NFT=$(node -pe "JSON.parse(require('fs').readFileSync('artifacts/sbt_deployment.json', 'utf8')).contracts.VotingRewardNFT.address")
         VOTING_CONTRACT=$(node -pe "JSON.parse(require('fs').readFileSync('artifacts/sbt_deployment.json', 'utf8')).contracts.VotingWithSBT.address")
         VERIFIER=$(node -pe "JSON.parse(require('fs').readFileSync('artifacts/sbt_deployment.json', 'utf8')).contracts.CitizenSBT.verifier")
+        # Escrow는 하드햇으로 배포
+        echo "🚀 SimpleNFTEscrow 배포 중 (Hardhat localhost)..."
+        npx hardhat run scripts/deploy_simple_escrow.js --network localhost
+        if [ -f "artifacts/escrow_deployment.json" ]; then
+            ESCROW=$(node -pe "JSON.parse(require('fs').readFileSync('artifacts/escrow_deployment.json', 'utf8')).address")
+        else
+            ESCROW=""
+        fi
         
         echo ""
         echo "📍 배포된 컨트랙트 주소:"
@@ -145,7 +153,16 @@ if [ $? -eq 0 ]; then
         echo "  VotingRewardNFT:   $REWARD_NFT"
         echo "  VotingWithSBT:     $VOTING_CONTRACT"
         echo "  Verifier:          $VERIFIER"
+        echo "  SimpleNFTEscrow:   ${ESCROW:-N/A}"
         echo ""
+
+        # Escrow ABI sync (after deployment to ensure file exists)
+        FRONTEND_ABI_DIR="../frontend/src/abi"
+        mkdir -p "$FRONTEND_ABI_DIR"
+        if [ -f "artifacts/SimpleNFTEscrow.abi.json" ]; then
+            cp artifacts/SimpleNFTEscrow.abi.json "$FRONTEND_ABI_DIR/SimpleNFTEscrow.json"
+            echo "  ✓ SimpleNFTEscrow.json"
+        fi
         
         # 프론트엔드 .env.local 업데이트
         FRONTEND_ENV="../frontend/.env.local"
@@ -160,6 +177,11 @@ if [ $? -eq 0 ]; then
             sed -i "s|REACT_APP_VOTING_CONTRACT_ADDRESS=.*|REACT_APP_VOTING_CONTRACT_ADDRESS=$VOTING_CONTRACT|g" "$FRONTEND_ENV"
             sed -i "s|REACT_APP_REWARD_NFT_ADDRESS=.*|REACT_APP_REWARD_NFT_ADDRESS=$REWARD_NFT|g" "$FRONTEND_ENV"
             sed -i "s|REACT_APP_VERIFIER_ADDRESS=.*|REACT_APP_VERIFIER_ADDRESS=$VERIFIER|g" "$FRONTEND_ENV"
+            if grep -q "REACT_APP_SIMPLE_ESCROW_ADDRESS" "$FRONTEND_ENV"; then
+                sed -i "s|REACT_APP_SIMPLE_ESCROW_ADDRESS=.*|REACT_APP_SIMPLE_ESCROW_ADDRESS=${ESCROW:-<escrow-address>}|g" "$FRONTEND_ENV"
+            else
+                echo "REACT_APP_SIMPLE_ESCROW_ADDRESS=${ESCROW:-<escrow-address>}" >> "$FRONTEND_ENV"
+            fi
             
             echo "✅ 프론트엔드 설정 업데이트 완료"
             echo "  파일: $FRONTEND_ENV"
@@ -169,6 +191,7 @@ if [ $? -eq 0 ]; then
             echo "    VOTING_CONTRACT: $VOTING_CONTRACT"
             echo "    REWARD_NFT:      $REWARD_NFT"
             echo "    VERIFIER:        $VERIFIER"
+            echo "    SIMPLE_ESCROW:   ${ESCROW:-<escrow-address>}"
             echo ""
             echo "⚠️  프론트엔드를 재시작해야 변경사항이 적용됩니다:"
             echo "  cd ../frontend && npm start"
@@ -189,6 +212,7 @@ if [ $? -eq 0 ]; then
   "CITIZEN_SBT_ADDRESS": "$CITIZEN_SBT",
   "VOTING_CONTRACT_ADDRESS": "$VOTING_CONTRACT",
   "REWARD_NFT_ADDRESS": "$REWARD_NFT",
+  "SIMPLE_ESCROW_ADDRESS": "${ESCROW:-<escrow-address>}",
   "VERIFIER_ADDRESS": "$VERIFIER",
   "RPC_URL": "http://localhost:9545",
   "CHAIN_ID": "0x539",
