@@ -53,7 +53,10 @@ Remaining: reentrancy attempt test, non-ERC721 address revert test, transfer fai
 2. ✅ Lightweight Node worker added (`scripts/escrow_indexer.js`): polls `Deposited/Swapped/Withdrawn`, upserts `deposits`, inserts `swap_events`, tracks last processed block in `scripts/.escrow_indexer_state.json`. Env: `RPC_URL`, `SIMPLE_ESCROW_ADDRESS`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, optional `START_BLOCK`.
    - Mapping rules: `Deposited` → status ACTIVE; `Swapped` → set both deposits CLOSED, insert swap_events; `Withdrawn` → status WITHDRAWN.
    - Reorg handling minimal (single cursor); future: add block confirmations/replay table if needed.
-3. Expose read-only API endpoints hitting Supabase: `GET /nft-trading/deposits`, `GET /nft-trading/deposits/:id`, `GET /nft-trading/swap-events` with pagination; public read (no auth); basic rate limit.
+3. ✅ Read-only API endpoints (Vercel functions):
+   - `GET /api/nft-trading/deposits?status=&owner=&limit=&cursor=` (created_at cursor pagination).
+   - `GET /api/nft-trading/swap-events?depositId=&limit=&cursor=` (filter by deposit involvement).
+   Both public, CORS open; consider rate limit in future.
 4. Frontend: if API available, prefer API for listing and recent swaps; fallback to on-chain polling if not.
 
 ### Phase D — Ops
