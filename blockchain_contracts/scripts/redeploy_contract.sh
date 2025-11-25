@@ -233,11 +233,10 @@ EOF
         }
         EXISTING_SUPABASE_URL=$(read_env_var "$INDEXER_ENV_FILE" "SUPABASE_URL" "${SUPABASE_URL:-<supabase-url>}")
         EXISTING_SUPABASE_KEY=$(read_env_var "$INDEXER_ENV_FILE" "SUPABASE_SERVICE_KEY" "${SUPABASE_SERVICE_KEY:-<supabase-service-key>}")
-        EXISTING_RPC_URL=$(read_env_var "$INDEXER_ENV_FILE" "RPC_URL" "http://localhost:9545")
 
         cat > "$INDEXER_ENV_FILE" <<EOF
 # Escrow indexer environment
-RPC_URL=${EXISTING_RPC_URL}
+RPC_URL=http://localhost:9545
 SIMPLE_ESCROW_ADDRESS=${ESCROW:-<escrow-address>}
 SUPABASE_URL=${EXISTING_SUPABASE_URL}
 SUPABASE_SERVICE_KEY=${EXISTING_SUPABASE_KEY}
