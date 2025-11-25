@@ -9,9 +9,9 @@ import { useToast } from "../components/ToastProvider";
 import { depositToEscrow, swapOnEscrow, withdrawFromEscrow } from "../lib/escrow";
 import { getRewardNFTs, REWARD_NFT_ADDR } from "../lib/sbt";
 import { getDeposits } from "../lib/nftTradingApi";
+import { getConfig } from "../lib/config";
 import RewardAbi from "../abi/VotingRewardNFT.json";
 import { ethers } from "ethers";
-import { getConfig } from "../lib/config";
 
 const { SIMPLE_ESCROW_ADDRESS } = getConfig();
 import "./NFTExchangePage.css";
