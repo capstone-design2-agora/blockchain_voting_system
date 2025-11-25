@@ -12,6 +12,7 @@ import { getDeposits } from "../lib/nftTradingApi";
 import { getConfig } from "../lib/config";
 import RewardAbi from "../abi/VotingRewardNFT.json";
 import { ethers } from "ethers";
+import "./NFTExchangePage.css";
 
 let SIMPLE_ESCROW_ADDRESS: string;
 try {
@@ -19,7 +20,6 @@ try {
 } catch {
   SIMPLE_ESCROW_ADDRESS = "";
 }
-import "./NFTExchangePage.css";
 
 type NftCardData = {
   id: string;
