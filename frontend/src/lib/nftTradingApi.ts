@@ -150,6 +150,8 @@ export interface Deposit {
   token_id: string;
   status: string;
   tx_hash: string | null;
+  required_ballot_id?: string | null;
+  required_grade?: number | null;
   created_at: string;
 }
 

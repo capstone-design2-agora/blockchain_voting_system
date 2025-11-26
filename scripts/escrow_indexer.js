@@ -86,6 +86,10 @@ async function main() {
     const name = ev.fragment?.name || ev.eventName || ev.event; // ethers v6 compatibility
     if (name === "Deposited") {
       const depositId = ev.args?.depositId?.toString();
+      const requiredBallotId = ev.args?.requiredBallotId ?? null;
+      const requiredGradeRaw = ev.args?.requiredGrade;
+      const requiredGrade =
+        requiredGradeRaw === undefined || requiredGradeRaw === null ? null : Number(requiredGradeRaw);
       const { error } = await supabase.from("deposits").upsert({
         id: depositId,
         owner_wallet: ev.args.owner,
@@ -93,6 +97,8 @@ async function main() {
         token_id: ev.args.tokenId.toString(),
         status: "ACTIVE",
         tx_hash: ev.transactionHash,
+        required_ballot_id: requiredBallotId,
+        required_grade: requiredGrade,
       });
       if (error) {
         console.error(`Upsert deposit ${depositId} ACTIVE failed`, error);
