@@ -2105,24 +2105,12 @@ type ReceiptSyncPayload = {
   status: string;
   chainId?: string;
   rawReceipt?: TransactionReceipt;
+  signature?: string | null;
 };
 
 async function syncVoteReceiptToSupabase(payload: ReceiptSyncPayload): Promise<void> {
   if (!payload.walletAddress || !payload.ballotId) return;
   try {
-    const web3Instance = getWeb3();
-    const signatureMessage = buildReceiptSignatureMessage(
-      payload.walletAddress,
-      payload.ballotId,
-      payload.proposalId,
-      payload.txHash
-    );
-    const signature = await web3Instance.eth.personal.sign(
-      signatureMessage,
-      payload.walletAddress,
-      ""
-    );
-
     const sanitizedReceipt = payload.rawReceipt
       ? sanitizeReceiptForStorage(payload.rawReceipt)
       : null;
@@ -2142,7 +2130,7 @@ async function syncVoteReceiptToSupabase(payload: ReceiptSyncPayload): Promise<v
         status: payload.status ?? "success",
         chainId: payload.chainId,
         rawReceipt: sanitizedReceipt,
-        signature,
+        signature: payload.signature || undefined,
       }),
     });
 
