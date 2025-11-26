@@ -2,6 +2,17 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
 describe("SimpleNFTEscrow", function () {
+  const BALLOT_ID = "ballot-1";
+  const GRADE = 2;
+  const OTHER_BALLOT = "ballot-2";
+  const OTHER_GRADE = 0;
+
+  async function getTokenId(tx) {
+    const receipt = await tx.wait();
+    const transferEvent = receipt.logs.find((l) => l.fragment && l.fragment.name === "Transfer");
+    return transferEvent.args.tokenId;
+  }
+
   async function deployFixture() {
     const [owner, other, taker] = await ethers.getSigners();
 
@@ -12,8 +23,14 @@ describe("SimpleNFTEscrow", function () {
     const Escrow = await ethers.getContractFactory("SimpleNFTEscrow");
     const escrow = await Escrow.deploy();
 
-    const tokenA = await collectionA.mint(owner.address);
-    const tokenB = await collectionB.mint(taker.address);
+    const tokenAId = await getTokenId(await collectionA.mintWithMeta(owner.address, BALLOT_ID, GRADE));
+    const tokenBId = await getTokenId(await collectionB.mintWithMeta(taker.address, BALLOT_ID, GRADE));
+    const wrongBallotId = await getTokenId(
+      await collectionB.mintWithMeta(taker.address, OTHER_BALLOT, GRADE)
+    );
+    const wrongGradeId = await getTokenId(
+      await collectionB.mintWithMeta(taker.address, BALLOT_ID, OTHER_GRADE)
+    );
 
     return {
       owner,
@@ -22,16 +39,20 @@ describe("SimpleNFTEscrow", function () {
       collectionA,
       collectionB,
       escrow,
-      tokenAId: (await tokenA.wait()).logs[0].args.tokenId,
-      tokenBId: (await tokenB.wait()).logs[0].args.tokenId
+      tokenAId,
+      tokenBId,
+      wrongBallotId,
+      wrongGradeId,
     };
   }
 
-  it("deposits and withdraws", async function () {
+  it("deposits and withdraws with criteria stored", async function () {
     const { escrow, collectionA, owner, tokenAId } = await deployFixture();
 
     await collectionA.connect(owner).approve(escrow.getAddress(), tokenAId);
-    const depositTx = await escrow.connect(owner).deposit(await collectionA.getAddress(), tokenAId);
+    const depositTx = await escrow
+      .connect(owner)
+      .deposit(await collectionA.getAddress(), tokenAId, BALLOT_ID, GRADE);
     const receipt = await depositTx.wait();
     const depositedEvent = receipt.logs.find((l) => l.fragment && l.fragment.name === "Deposited");
     const depositId = depositedEvent.args.depositId;
@@ -39,17 +60,21 @@ describe("SimpleNFTEscrow", function () {
     const stored = await escrow.deposits(depositId);
     expect(stored.owner).to.equal(owner.address);
     expect(stored.active).to.equal(true);
+    expect(stored.requiredBallotId).to.equal(BALLOT_ID);
+    expect(stored.requiredGrade).to.equal(GRADE);
 
     await escrow.connect(owner).withdraw(depositId);
     expect((await escrow.deposits(depositId)).active).to.equal(false);
     expect(await collectionA.ownerOf(tokenAId)).to.equal(owner.address);
   });
 
-  it("swaps taker NFT for target deposit", async function () {
+  it("swaps taker NFT when ballot/grade match", async function () {
     const { escrow, collectionA, collectionB, owner, taker, tokenAId, tokenBId } = await deployFixture();
 
     await collectionA.connect(owner).approve(escrow.getAddress(), tokenAId);
-    const depositTx = await escrow.connect(owner).deposit(await collectionA.getAddress(), tokenAId);
+    const depositTx = await escrow
+      .connect(owner)
+      .deposit(await collectionA.getAddress(), tokenAId, BALLOT_ID, GRADE);
     const targetDepositEvent = (await depositTx.wait()).logs.find(
       (l) => l.fragment && l.fragment.name === "Deposited"
     );
@@ -76,8 +101,11 @@ describe("SimpleNFTEscrow", function () {
     const { escrow, collectionA, owner, other, tokenAId } = await deployFixture();
 
     await collectionA.connect(owner).approve(escrow.getAddress(), tokenAId);
-    const depositTx = await escrow.connect(owner).deposit(await collectionA.getAddress(), tokenAId);
-    const depositId = (await depositTx.wait()).logs.find((l) => l.fragment && l.fragment.name === "Deposited").args.depositId;
+    const depositTx = await escrow
+      .connect(owner)
+      .deposit(await collectionA.getAddress(), tokenAId, BALLOT_ID, GRADE);
+    const depositId = (await depositTx.wait()).logs.find((l) => l.fragment && l.fragment.name === "Deposited").args
+      .depositId;
 
     await expect(escrow.connect(other).withdraw(depositId)).to.be.revertedWithCustomError(
       escrow,
@@ -89,7 +117,9 @@ describe("SimpleNFTEscrow", function () {
     const { escrow, collectionA, collectionB, owner, taker, tokenAId, tokenBId } = await deployFixture();
 
     await collectionA.connect(owner).approve(escrow.getAddress(), tokenAId);
-    const depositTx = await escrow.connect(owner).deposit(await collectionA.getAddress(), tokenAId);
+    const depositTx = await escrow
+      .connect(owner)
+      .deposit(await collectionA.getAddress(), tokenAId, BALLOT_ID, GRADE);
     const targetId = (await depositTx.wait()).logs.find((l) => l.fragment && l.fragment.name === "Deposited").args
       .depositId;
     await escrow.connect(owner).withdraw(targetId);
@@ -98,5 +128,37 @@ describe("SimpleNFTEscrow", function () {
     await expect(
       escrow.connect(taker).swap(targetId, await collectionB.getAddress(), tokenBId)
     ).to.be.revertedWithCustomError(escrow, "InactiveDeposit");
+  });
+
+  it("reverts swap when ballot mismatch", async function () {
+    const { escrow, collectionA, collectionB, owner, taker, tokenAId, wrongBallotId } = await deployFixture();
+
+    await collectionA.connect(owner).approve(escrow.getAddress(), tokenAId);
+    const depositTx = await escrow
+      .connect(owner)
+      .deposit(await collectionA.getAddress(), tokenAId, BALLOT_ID, GRADE);
+    const targetId = (await depositTx.wait()).logs.find((l) => l.fragment && l.fragment.name === "Deposited").args
+      .depositId;
+
+    await collectionB.connect(taker).approve(escrow.getAddress(), wrongBallotId);
+    await expect(
+      escrow.connect(taker).swap(targetId, await collectionB.getAddress(), wrongBallotId)
+    ).to.be.revertedWithCustomError(escrow, "CriteriaNotMet");
+  });
+
+  it("reverts swap when grade mismatch", async function () {
+    const { escrow, collectionA, collectionB, owner, taker, tokenAId, wrongGradeId } = await deployFixture();
+
+    await collectionA.connect(owner).approve(escrow.getAddress(), tokenAId);
+    const depositTx = await escrow
+      .connect(owner)
+      .deposit(await collectionA.getAddress(), tokenAId, BALLOT_ID, GRADE);
+    const targetId = (await depositTx.wait()).logs.find((l) => l.fragment && l.fragment.name === "Deposited").args
+      .depositId;
+
+    await collectionB.connect(taker).approve(escrow.getAddress(), wrongGradeId);
+    await expect(
+      escrow.connect(taker).swap(targetId, await collectionB.getAddress(), wrongGradeId)
+    ).to.be.revertedWithCustomError(escrow, "CriteriaNotMet");
   });
 });

@@ -20,14 +20,19 @@ async function main() {
     const balance = await rewardNft.balanceOf(signer.address);
     console.log("NFT Balance:", balance.toString());
 
-    if (balance > 0) {
-        // Get first token
-        const tokenId = await rewardNft.tokenOfOwnerByIndex(signer.address, 0);
-        console.log("First Token ID:", tokenId.toString());
+        if (balance > 0) {
+            // Get first token
+            const tokenId = await rewardNft.tokenOfOwnerByIndex(signer.address, 0);
+            console.log("First Token ID:", tokenId.toString());
 
-        // Check owner
-        const owner = await rewardNft.ownerOf(tokenId);
-        console.log("Token Owner:", owner);
+            const ballotId = await rewardNft.getBallotId(tokenId);
+            const rarity = await rewardNft.getRarity(tokenId);
+            console.log("Ballot ID:", ballotId);
+            console.log("Rarity (grade):", rarity.toString());
+
+            // Check owner
+            const owner = await rewardNft.ownerOf(tokenId);
+            console.log("Token Owner:", owner);
 
         // Check approval
         const isApproved = await rewardNft.isApprovedForAll(signer.address, escrowAddress);
@@ -40,15 +45,15 @@ async function main() {
             console.log("✅ Approval set");
         }
 
-        // Try to deposit
-        console.log("Attempting deposit...");
-        try {
-            const tx = await escrow.deposit(rewardNftAddress, tokenId);
-            console.log("Transaction sent:", tx.hash);
-            const receipt = await tx.wait();
-            console.log("Transaction confirmed");
-            console.log("Gas used:", receipt.gasUsed.toString());
-            console.log("Logs:", receipt.logs.length);
+            // Try to deposit
+            console.log("Attempting deposit...");
+            try {
+                const tx = await escrow.deposit(rewardNftAddress, tokenId, ballotId, rarity);
+                console.log("Transaction sent:", tx.hash);
+                const receipt = await tx.wait();
+                console.log("Transaction confirmed");
+                console.log("Gas used:", receipt.gasUsed.toString());
+                console.log("Logs:", receipt.logs.length);
 
             // Parse logs
             for (const log of receipt.logs) {

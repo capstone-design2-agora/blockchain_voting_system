@@ -16,8 +16,13 @@ function getEscrowContract(signerOrProvider: ethers.Provider | ethers.Signer) {
   return new ethers.Contract(SIMPLE_ESCROW_ADDRESS, escrowAbi.abi, signerOrProvider);
 }
 
-export async function depositToEscrow(nftAddress: string, tokenId: string | number | bigint) {
-  console.log("🎬 depositToEscrow called with:", { nftAddress, tokenId });
+export async function depositToEscrow(
+  nftAddress: string,
+  tokenId: string | number | bigint,
+  requiredBallotId: string,
+  requiredGrade: string | number | bigint
+) {
+  console.log("🎬 depositToEscrow called with:", { nftAddress, tokenId, requiredBallotId, requiredGrade });
   
   const signer = await getSigner();
   const contract = getEscrowContract(signer);
@@ -25,13 +30,14 @@ export async function depositToEscrow(nftAddress: string, tokenId: string | numb
   console.log("📍 Escrow contract address:", contract.target);
   console.log("📍 NFT address:", nftAddress);
   console.log("🎫 Token ID:", tokenId.toString());
+  console.log("🏷️ ballot/grade:", requiredBallotId, requiredGrade);
   
   let depositId: bigint | null = null;
 
   // Method 1: Use staticCall to get the return value before sending the transaction
   console.log("🔍 Attempting staticCall...");
   try {
-    depositId = await contract.deposit.staticCall(nftAddress, tokenId);
+    depositId = await contract.deposit.staticCall(nftAddress, tokenId, requiredBallotId, requiredGrade);
     console.log("✅ Got depositId from staticCall:", depositId?.toString());
   } catch (error: any) {
     console.error("❌ staticCall failed:", error);
@@ -43,7 +49,7 @@ export async function depositToEscrow(nftAddress: string, tokenId: string | numb
 
   // Send the actual transaction
   console.log("📤 Sending deposit transaction...");
-  const tx = await contract.deposit(nftAddress, tokenId);
+  const tx = await contract.deposit(nftAddress, tokenId, requiredBallotId, requiredGrade);
   console.log("📤 Transaction sent:", tx.hash);
   console.log("📋 Transaction data:", tx.data);
   

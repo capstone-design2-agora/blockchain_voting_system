@@ -679,6 +679,54 @@ export function VotingApp() {
     }
   }, []);
 
+  const hydrateVoteFromSupabase = useCallback(
+    async (
+      walletAddress: string | null,
+      ballot: BallotMeta | null,
+      candidatesList: CandidateRecord[]
+    ) => {
+      const storageKey =
+        ballotStorageKey ?? buildBallotKeyForStorage(ballot) ?? null;
+      if (!walletAddress || !ballot?.id || !storageKey) {
+        return;
+      }
+
+      const supabaseReceipt = await fetchVoteReceiptFromSupabase(
+        walletAddress,
+        ballot.id
+      );
+      const normalizedReceipt = normalizeSupabaseReceipt(supabaseReceipt);
+      if (!normalizedReceipt) {
+        return;
+      }
+
+      const proposalId = toNumberOrNull(
+        (supabaseReceipt as any)?.proposal_id ??
+        (supabaseReceipt as any)?.proposalId
+      );
+      const candidateName =
+        candidatesList.find((candidate) => candidate.id === proposalId)?.name ??
+        null;
+
+      setLastReceipt(normalizedReceipt);
+      setLastCandidateId(proposalId ?? null);
+      setLastCandidateName(candidateName);
+      setUserHasVoted(true);
+
+      if (proposalId != null) {
+        persistLastVoteSnapshot(walletAddress, storageKey, {
+          candidateId: proposalId,
+          candidateName: candidateName ?? "알 수 없음",
+          receipt: normalizedReceipt,
+          ballotId: ballot.id,
+          ballotTitle: ballot.title,
+          ballotContract: ballot.contractAddress,
+        });
+      }
+    },
+    [ballotStorageKey]
+  );
+
   const loadCandidates = useCallback(async () => {
     if (!activeBallot?.contractAddress) return;
     setLoading(true);
@@ -737,6 +785,14 @@ export function VotingApp() {
         calculateTurnout(voteSum, activeBallot.expectedVoters)
       );
       setStatus("");
+
+      const existingSnapshot = readLastVoteSnapshot(
+        primaryAccount ?? normalizedAccount,
+        ballotStorageKey
+      );
+      if (!existingSnapshot && primaryAccount) {
+        await hydrateVoteFromSupabase(primaryAccount, activeBallot, enriched);
+      }
     } catch (error) {
       console.error(error);
       setCandidates(FALLBACK_CANDIDATES.map((candidate) => ({ ...candidate })));
@@ -755,7 +811,7 @@ export function VotingApp() {
     } finally {
       setLoading(false);
     }
-  }, [activeBallot, ballotStorageKey, metaMap, normalizedAccount]);
+  }, [activeBallot, ballotStorageKey, hydrateVoteFromSupabase, metaMap, normalizedAccount]);
 
   const connectWallet = useCallback(async () => {
     if (!hasBrowserWallet()) {
@@ -2142,6 +2198,78 @@ async function syncVoteReceiptToSupabase(payload: ReceiptSyncPayload): Promise<v
   } catch (error) {
     console.warn("Failed to sync vote receipt to Supabase", error);
   }
+}
+
+type SupabaseVoteReceipt = {
+  wallet_address: string;
+  ballot_id: string;
+  proposal_id: number | string | null;
+  tx_hash: string | null;
+  block_number?: number | string | null;
+  status?: string | null;
+  chain_id?: string | null;
+  raw_receipt?: any;
+};
+
+async function fetchVoteReceiptFromSupabase(
+  walletAddress: string,
+  ballotId: string
+): Promise<SupabaseVoteReceipt | null> {
+  const apiBase = process.env.REACT_APP_API_BASE_URL || "";
+  const params = new URLSearchParams({
+    walletAddress,
+    ballotId,
+  });
+  try {
+    const response = await fetch(`${apiBase}/api/get-vote-receipt?${params.toString()}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (response.status === 404) {
+      return null;
+    }
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`get-vote-receipt failed: ${response.status} ${text}`);
+    }
+    const parsed = await response.json();
+    return parsed?.receipt ?? null;
+  } catch (error) {
+    console.warn("Failed to fetch vote receipt from Supabase", error);
+    return null;
+  }
+}
+
+function normalizeSupabaseReceipt(row: SupabaseVoteReceipt | null): NormalizedReceipt | null {
+  if (!row) return null;
+  const txHash = toHashString((row as any).tx_hash ?? (row as any).txHash);
+  if (!txHash) return null;
+
+  const blockNumber = toNumberOrNull((row as any).block_number ?? (row as any).blockNumber);
+  const rawReceipt = (row as any).raw_receipt ?? (row as any).rawReceipt ?? null;
+  const gasUsed = stringifyNumericLike(rawReceipt?.gasUsed ?? rawReceipt?.gas ?? "0");
+  const gasPrice = stringifyNumericLike(
+    rawReceipt?.effectiveGasPrice ?? rawReceipt?.gasPrice ?? "0"
+  );
+  const fromAddress = toHashString(
+    rawReceipt?.from ?? rawReceipt?.fromAddress ?? (row as any).wallet_address
+  );
+  const statusValue = rawReceipt?.status ?? (row as any).status;
+  const isSuccess = statusValue != null ? coerceStatus(statusValue) : true;
+
+  return {
+    statusLabel: isSuccess ? "성공" : "실패",
+    displayHash: formatHashForDisplay(txHash),
+    transactionHash: txHash,
+    blockNumber: blockNumber ?? null,
+    gasUsed,
+    effectiveGasPrice: gasPrice,
+    confirmations: 0,
+    fromAddress: fromAddress || null,
+  };
 }
 
 function buildReceiptSignatureMessage(

@@ -24,7 +24,10 @@ export default async function handler(req, res) {
     const supabase = getSupabaseClient();
     let query = supabase
       .from("deposits")
-      .select("id, owner_wallet, nft_contract, token_id, status, tx_hash, created_at", { count: "estimated" })
+      .select(
+        "id, owner_wallet, nft_contract, token_id, status, tx_hash, created_at, required_ballot_id, required_grade",
+        { count: "estimated" }
+      )
       .order("created_at", { ascending: false })
       .limit(limit);
 
