@@ -165,6 +165,8 @@ REACT_APP_RPC=http://localhost:10545
 
 # Deployed VotingWithNFT contract address (from blockchain_contracts/artifacts/deployment.json)
 REACT_APP_VOTING_ADDRESS=<deployed-contract-address>
+# Optional: multiple voting contracts (space separated)
+# REACT_APP_VOTING_CONTRACT_ADDRESSES=<address-1> <address-2>
 
 # Optional expected voter turnout baseline (used for UI percentage)
 REACT_APP_EXPECTED_VOTERS=1000
@@ -201,6 +203,7 @@ sync_frontend_env_files() {
     local reward_nft_address="$3"
     local verifier_address="$4"
     local escrow_address="$5"
+    local voting_addresses_all="$6"
 
     ensure_env_template
     ensure_env_file_exists "${FRONTEND_ENV_LOCAL}"
@@ -221,6 +224,9 @@ sync_frontend_env_files() {
     replace_or_append_env_key "${FRONTEND_ENV_LOCAL}" "REACT_APP_SIMPLE_ESCROW_ADDRESS" "${escrow_address:-<escrow-address>}"
     replace_or_append_env_key "${FRONTEND_ENV_LOCAL}" "REACT_APP_PROPOSAL_NAMES" "${PROPOSALS:-}"
     replace_or_append_env_key "${FRONTEND_ENV_LOCAL}" "REACT_APP_PROPOSAL_PLEDGES" "${PLEDGES:-}"
+    if [[ -n "${voting_addresses_all:-}" ]]; then
+        replace_or_append_env_key "${FRONTEND_ENV_LOCAL}" "REACT_APP_VOTING_CONTRACT_ADDRESSES" "${voting_addresses_all}"
+    fi
 
     echo -e "${GREEN}✓ Updated frontend .env.local with contract metadata${NC}"
 }
@@ -231,15 +237,25 @@ update_frontend_config_json() {
     local reward_nft_address="$3"
     local verifier_address="$4"
     local escrow_address="$5"
+    local voting_addresses_json="$6"
     local config_file="${FRONTEND_DIR}/public/config.json"
 
     mkdir -p "$(dirname "${config_file}")"
+
+    if [[ -z "${voting_addresses_json:-}" ]]; then
+        if [[ -n "${voting_address}" ]]; then
+            voting_addresses_json="[\"${voting_address}\"]"
+        else
+            voting_addresses_json="[]"
+        fi
+    fi
 
     # Create JSON content
     cat > "${config_file}" <<EOF
 {
   "CITIZEN_SBT_ADDRESS": "${citizen_sbt_address}",
   "VOTING_CONTRACT_ADDRESS": "${voting_address}",
+  "VOTING_CONTRACT_ADDRESSES": ${voting_addresses_json},
   "REWARD_NFT_ADDRESS": "${reward_nft_address}",
   "SIMPLE_ESCROW_ADDRESS": "${escrow_address}",
   "VERIFIER_ADDRESS": "${verifier_address}",
@@ -250,6 +266,42 @@ update_frontend_config_json() {
 }
 EOF
     echo -e "${GREEN}✓ Updated frontend/public/config.json with contract metadata${NC}"
+}
+
+# Helper to resolve ballot-scoped variables with optional numeric suffix
+get_ballot_var() {
+    local field="$1"    # e.g., ID, TITLE, OPENS_AT
+    local suffix="$2"   # "" or "2", "3" ...
+    local fallback="$3"
+    local key=""
+    if [[ -z "$suffix" ]]; then
+        key="BALLOT_${field}"
+    else
+        key="BALLOT${suffix}_${field}"
+    fi
+    local value="${!key:-}"
+    if [[ -z "$value" ]]; then
+        echo "$fallback"
+    else
+        echo "$value"
+    fi
+}
+
+serialize_json_array() {
+    if [[ $# -eq 0 ]]; then
+        echo "[]"
+        return
+    fi
+    local joined=""
+    for item in "$@"; do
+        [[ -z "$item" ]] && continue
+        joined+=$(printf '"%s",' "$item")
+    done
+    if [[ -z "$joined" ]]; then
+        echo "[]"
+    else
+        echo "[${joined%,}]"
+    fi
 }
 
 # 1. 합의 알고리즘 확인
@@ -499,12 +551,69 @@ VOTING_ADDRESS=$(node -p "try { require('${ARTIFACTS_DIR}/sbt_deployment.json').
 REWARD_NFT_ADDRESS=$(node -p "try { require('${ARTIFACTS_DIR}/sbt_deployment.json').contracts.VotingRewardNFT.address || '' } catch(e) { '' }")
 VERIFIER_ADDRESS=$(node -p "try { require('${ARTIFACTS_DIR}/sbt_deployment.json').contracts.CitizenSBT.verifier || '' } catch(e) { '' }")
 SIMPLE_ESCROW_ADDRESS=$(node -p "try { require('${ARTIFACTS_DIR}/escrow_deployment.json').address || '' } catch(e) { '' }")
+VOTING_ADDRESSES=()
+if [[ -n "${VOTING_ADDRESS}" ]]; then
+    VOTING_ADDRESSES+=("${VOTING_ADDRESS}")
+fi
+
+deploy_additional_ballot() {
+    local suffix="$1"
+    echo -e "\n${YELLOW}→ Deploying additional VotingWithSBT for BALLOT${suffix:-1}${NC}"
+    export BALLOT_ID="$(get_ballot_var ID "${suffix}" "${BALLOT_ID:-$DEFAULT_BALLOT_ID}")"
+    export BALLOT_TITLE="$(get_ballot_var TITLE "${suffix}" "${BALLOT_TITLE:-$DEFAULT_BALLOT_TITLE}")"
+    export BALLOT_DESCRIPTION="$(get_ballot_var DESCRIPTION "${suffix}" "${BALLOT_DESCRIPTION:-$DEFAULT_BALLOT_DESCRIPTION}")"
+    export BALLOT_OPENS_AT=$(date_to_timestamp "$(get_ballot_var OPENS_AT "${suffix}" "${BALLOT_OPENS_AT:-$DEFAULT_BALLOT_OPEN}")")
+    export BALLOT_CLOSES_AT=$(date_to_timestamp "$(get_ballot_var CLOSES_AT "${suffix}" "${BALLOT_CLOSES_AT:-$DEFAULT_BALLOT_CLOSE}")")
+    export BALLOT_ANNOUNCES_AT=$(date_to_timestamp "$(get_ballot_var ANNOUNCES_AT "${suffix}" "${BALLOT_ANNOUNCES_AT:-$DEFAULT_BALLOT_ANNOUNCE}")")
+    export BALLOT_EXPECTED_VOTERS="$(get_ballot_var EXPECTED_VOTERS "${suffix}" "${BALLOT_EXPECTED_VOTERS:-$DEFAULT_EXPECTED_VOTERS}")"
+    export PROPOSALS="$(get_ballot_var PROPOSALS "${suffix}" "${PROPOSALS:-$DEFAULT_PROPOSALS}")"
+    export PLEDGES="$(get_ballot_var PLEDGES "${suffix}" "${PLEDGES:-}")"
+
+    local mascot_cid="${MASCOT_CID:-}"
+    local nft_name_local="${NFT_NAME:-}"
+    if [[ -n "${suffix}" ]]; then
+        local mascot_var="MASCOT${suffix}_CID"
+        local nftname_var="NFT${suffix}_NAME"
+        mascot_cid="${!mascot_var:-$mascot_cid}"
+        nft_name_local="${!nftname_var:-$nft_name_local}"
+    fi
+    export MASCOT_CID="${mascot_cid}"
+    export NFT_NAME="${nft_name_local}"
+
+    node "${SCRIPT_DIR}/redeploy_voting_contract.js"
+    local new_address
+    new_address=$(node -p "try { require('${ARTIFACTS_DIR}/sbt_deployment.json').contracts.VotingWithSBT.address || '' } catch(e) { '' }")
+    if [[ -z "${new_address}" ]]; then
+        echo -e "${RED}✗ Failed to read new VotingWithSBT address for BALLOT${suffix:-1}${NC}"
+        exit 1
+    fi
+    VOTING_ADDRESSES+=("${new_address}")
+    echo -e "${GREEN}✓ VotingWithSBT deployed for BALLOT${suffix:-1}: ${new_address}${NC}"
+}
+
+BALLOT_SUFFIXES=()
+for n in 2 3 4 5; do
+    if env | grep -q "^BALLOT${n}_ID="; then
+        BALLOT_SUFFIXES+=("${n}")
+    fi
+done
+
+if [[ ${#BALLOT_SUFFIXES[@]} -gt 0 ]]; then
+    echo -e "\n${YELLOW}Deploying additional ballots defined in deploy.env...${NC}"
+    for suffix in "${BALLOT_SUFFIXES[@]}"; do
+        deploy_additional_ballot "${suffix}"
+    done
+fi
+
+PRIMARY_VOTING_ADDRESS="${VOTING_ADDRESSES[0]:-${VOTING_ADDRESS:-}}"
+VOTING_ADDRESSES_JSON=$(serialize_json_array "${VOTING_ADDRESSES[@]}")
+VOTING_ADDRESSES_ENV="${VOTING_ADDRESSES[*]}"
 
 if [[ -z "${CITIZEN_SBT_ADDRESS}" ]]; then
     echo -e "${YELLOW}Deployment addresses not found. Frontend env files will contain placeholders until deployment succeeds.${NC}"
 fi
-sync_frontend_env_files "${CITIZEN_SBT_ADDRESS}" "${VOTING_ADDRESS}" "${REWARD_NFT_ADDRESS}" "${VERIFIER_ADDRESS}" "${SIMPLE_ESCROW_ADDRESS}"
-update_frontend_config_json "${CITIZEN_SBT_ADDRESS}" "${VOTING_ADDRESS}" "${REWARD_NFT_ADDRESS}" "${VERIFIER_ADDRESS}" "${SIMPLE_ESCROW_ADDRESS}"
+sync_frontend_env_files "${CITIZEN_SBT_ADDRESS}" "${PRIMARY_VOTING_ADDRESS}" "${REWARD_NFT_ADDRESS}" "${VERIFIER_ADDRESS}" "${SIMPLE_ESCROW_ADDRESS}" "${VOTING_ADDRESSES_ENV}"
+update_frontend_config_json "${CITIZEN_SBT_ADDRESS}" "${PRIMARY_VOTING_ADDRESS}" "${REWARD_NFT_ADDRESS}" "${VERIFIER_ADDRESS}" "${SIMPLE_ESCROW_ADDRESS}" "${VOTING_ADDRESSES_JSON}"
 
 # Write/refresh indexer env file (preserve existing values if present)
 INDEXER_ENV_FILE="${PROJECT_ROOT}/scripts/indexer.env"
@@ -540,10 +649,13 @@ if [[ "${WITH_NGROK}" == "true" ]]; then
 else
     echo -e "${GREEN}RPC Endpoint:${NC} ${EFFECTIVE_RPC_ENDPOINT}"
 fi
-echo -e "${GREEN}CitizenSBT:${NC} $(node -p "require('${ARTIFACTS_DIR}/sbt_deployment.json').contracts.CitizenSBT.address" 2>/dev/null || echo 'N/A')"
-echo -e "${GREEN}VotingWithSBT:${NC} $(node -p "require('${ARTIFACTS_DIR}/sbt_deployment.json').contracts.VotingWithSBT.address" 2>/dev/null || echo 'N/A')"
-echo -e "${GREEN}VotingRewardNFT:${NC} $(node -p "require('${ARTIFACTS_DIR}/sbt_deployment.json').contracts.VotingRewardNFT.address" 2>/dev/null || echo 'N/A')"
-echo -e "${GREEN}SimpleNFTEscrow:${NC} $(node -p "require('${ARTIFACTS_DIR}/escrow_deployment.json').address" 2>/dev/null || echo 'N/A')"
+echo -e "${GREEN}CitizenSBT:${NC} ${CITIZEN_SBT_ADDRESS:-N/A}"
+echo -e "${GREEN}VotingWithSBT:${NC} ${PRIMARY_VOTING_ADDRESS:-N/A}"
+if [[ ${#VOTING_ADDRESSES[@]} -gt 1 ]]; then
+    echo -e "${GREEN}VotingWithSBT (all):${NC} ${VOTING_ADDRESSES[*]}"
+fi
+echo -e "${GREEN}VotingRewardNFT:${NC} ${REWARD_NFT_ADDRESS:-N/A}"
+echo -e "${GREEN}SimpleNFTEscrow:${NC} ${SIMPLE_ESCROW_ADDRESS:-N/A}"
 echo -e "${GREEN}Artifacts:${NC} ${ARTIFACTS_DIR}"
 echo ""
 echo -e "${YELLOW}Next steps:${NC}"

@@ -12,13 +12,12 @@ Licensed under the Apache License, Version 2.0
 Original source: https://github.com/ConsenSys/quorum-dev-quickstart
 
 The following directories contain code from Quorum Dev Quickstart:
-- network/
-- quorum-besu-network/
+- network/ (Docker-based multi-node Quorum network configuration)
 
 Modifications made:
-- Removed individual consensus-specific docker-compose files
-- Modified for single docker-compose.yml with .env configuration
-- Customized for performance benchmarking experiments
+- Integrated with SBT-based voting system
+- Customized for use with CitizenSBT, VotingWithSBT contracts
+- Added support for automated deployment and environment configuration
 
 ================================================================================
 OpenZeppelin Contracts
@@ -31,31 +30,79 @@ Licensed under the MIT License
 Original source: https://github.com/OpenZeppelin/openzeppelin-contracts
 
 Used in:
-- blockchain_contracts/contracts/VotingWithNFT.sol (ERC-721 implementation)
+- blockchain_contracts/contracts/CitizenSBT.sol (ERC-4973 SBT implementation)
+- blockchain_contracts/contracts/VotingRewardNFT.sol (ERC-721 NFT implementation)
+- blockchain_contracts/contracts/NFTEscrow.sol (ERC-721 handling)
 
 ================================================================================
 
 Our Original Contributions
 ================================================================================
 
-The following components are original work created for this research project:
+The following components are original work created for this project:
 
 Smart Contracts & Deployment:
-- blockchain_contracts/contracts/VotingWithNFT.sol
-- blockchain_contracts/deploy_contract.js
-- blockchain_contracts/setup_and_deploy.sh
+- blockchain_contracts/contracts/CitizenSBT.sol (Soulbound Token for identity verification)
+- blockchain_contracts/contracts/VotingWithSBT.sol (Vote contract with SBT validation)
+- blockchain_contracts/contracts/VotingRewardNFT.sol (ERC-721 reward NFT)
+- blockchain_contracts/contracts/NFTEscrow.sol (NFT trading escrow contract)
+- blockchain_contracts/deploy_sbt_system.js (SBT system deployment script)
+- blockchain_contracts/scripts/setup_and_deploy.sh (Automated deployment)
+- blockchain_contracts/scripts/redeploy_contract.sh (Re-deployment utility)
 
-Benchmarking System:
-- blockchain_contracts/benchmark.py
-- blockchain_contracts/run_raft_benchmarks.sh
-- blockchain_contracts/run_qbft_benchmarks.sh
-- blockchain_contracts/check_nft_receipt.py
-- blockchain_contracts/check_csv_results.py
+Backend API (Phase 2 - Email Verification):
+- api/request-code.js (OTP email request)
+- api/verify-and-sign.js (Code verification and signature generation)
+- api/check-status.js (Verification status check)
+- api/complete-verification.js (Transaction completion notification)
+- api/_lib/crypto.js (Cryptographic utilities)
+- api/_lib/email.js (Email sending via Resend)
+- api/_lib/supabase.js (Supabase integration)
+- api/_lib/rate-limit.js (API rate limiting)
 
-Documentation & Results:
-- README.md (this file)
-- test_result/ (experimental results)
-- BENCHMARK_ANALYSIS_REPORT.md
+NFT Trading System (Phase 3):
+- api/nft-trading/deposits.js (NFT deposit management)
+- api/nft-trading/swap.js (NFT swap execution)
+- api/nft-trading/withdraw.js (NFT withdrawal)
+- api/nft-trading/_lib.js (Shared trading utilities)
+- scripts/escrow_indexer.js (Blockchain event indexing)
+
+Frontend UI (React + TypeScript):
+- frontend/src/pages/EmailVerificationPage.tsx (Email verification flow)
+- frontend/src/pages/VotingApp.tsx (Voting interface)
+- frontend/src/pages/MyNFTsPage.tsx (NFT collection display)
+- frontend/src/pages/NFTExchangePage.tsx (NFT trading marketplace)
+- frontend/src/lib/emailVerificationApi.ts (Email API client)
+- frontend/src/lib/nftEscrowApi.ts (NFT trading API client)
+- frontend/src/stores/emailVerificationStore.ts (Auth state management)
+- frontend/src/stores/nftTradingStore.ts (Trading state management)
+
+Database Schema (Supabase):
+- supabase/migrations/ (Database schema definitions)
+
+Documentation & Configuration:
+- README.md (Comprehensive project documentation)
+- docs/ARCHITECTURE.md (System architecture guide)
+- docs/nft-trading-system-spec.md (NFT trading specification)
+- frontend/RUN_GUIDE.md (Frontend execution guide)
+- .github/copilot-instructions.md (AI agent development guide)
+- blockchain_contracts/deploy.env.example (Deployment configuration template)
 
 These original contributions are licensed under the MIT License.
 See LICENSE file for details.
+
+================================================================================
+Project Summary
+================================================================================
+
+This is a complete blockchain voting system with:
+- SBT-based identity verification (CitizenSBT)
+- Secure email OTP authentication
+- Smart contract-based voting (VotingWithSBT)
+- Participation reward NFTs (VotingRewardNFT)
+- NFT trading with escrow mechanism (NFTEscrow)
+- Integrated React web interface
+- Automated deployment and indexing
+
+Version: 3.0.0
+Last Updated: 2025-12-05

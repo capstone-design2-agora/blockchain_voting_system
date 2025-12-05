@@ -206,19 +206,21 @@
 .nft-card {
   background: var(--nft-card-bg);
   border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  /* Border and box-shadow are now handled inline for rarity glow */
+  border: 2px solid var(--rarity-color, rgba(255, 255, 255, 0.1));
+  box-shadow: 0 0 20px -2px var(--rarity-color, rgba(255, 255, 255, 0.1));
   overflow: hidden;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   display: flex;
   flex-direction: column;
-  box-shadow: var(--nft-shadow-card);
 }
 
 .nft-card:hover {
   transform: translateY(-8px);
-  box-shadow: var(--nft-shadow-hover);
-  border-color: rgba(139, 92, 246, 0.5);
+  /* Hover glow is intensified */
+  box-shadow: 0 0 40px 5px var(--rarity-color, rgba(139, 92, 246, 0.6)) !important;
+  border-color: var(--rarity-color, rgba(139, 92, 246, 0.8)) !important;
 }
 
 .nft-card__image {
@@ -309,6 +311,7 @@
 
 /* Swap Picker Modal */
 /* Swap Picker Modal */
+.listing-modal-overlay,
 .swap-picker-overlay {
   position: fixed;
   top: 0;
@@ -322,6 +325,76 @@
   align-items: center;
   justify-content: center;
   animation: fadeIn 0.2s ease-out;
+}
+
+.listing-modal {
+  position: relative;
+  width: 90%;
+  max-width: 540px;
+  background: #0f172a;
+  border-radius: 20px;
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.listing-modal__header {
+  padding: 1.25rem 1.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.listing-modal__header h3 {
+  margin: 0.25rem 0;
+  font-size: 1.2rem;
+}
+
+.listing-modal__close {
+  background: none;
+  border: none;
+  color: var(--nft-text-muted);
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+
+.listing-modal__content {
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.listing-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  color: var(--nft-text-muted);
+  font-size: 0.95rem;
+}
+
+.listing-modal__field input,
+.listing-modal__field select {
+  padding: 0.75rem 0.85rem;
+  background: #0f172a;
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  border-radius: 12px;
+  color: #e2e8f0;
+}
+
+.listing-modal__field select option {
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+.listing-modal__actions {
+  padding: 1rem 1.5rem 1.25rem;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
 }
 
 .swap-picker {
@@ -531,7 +604,7 @@
 
 .sort-select {
   padding: 0.75rem 1rem;
-  background: rgba(30, 41, 59, 0.6);
+  background: #0f172a;
   border: 1px solid rgba(139, 92, 246, 0.3);
   border-radius: 12px;
   color: var(--nft-text-main);
@@ -544,13 +617,13 @@
 .sort-select:focus {
   outline: none;
   border-color: var(--nft-primary);
-  background: rgba(30, 41, 59, 0.8);
+  background: #0f172a;
   box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
 }
 
 .sort-select option {
-  background: #1e293b;
-  color: var(--nft-text-main);
+  background: #0f172a;
+  color: #e2e8f0;
 }
 
 /* Modal styles - reuse from MyNFTsPage */

@@ -18,6 +18,10 @@ ehthumbs.db
 *.sublime-workspace
 *.iml
 GEMINI.md
+.gemini
+.github
+.agent
+archive/
 
 # Package manager caches
 .npm/

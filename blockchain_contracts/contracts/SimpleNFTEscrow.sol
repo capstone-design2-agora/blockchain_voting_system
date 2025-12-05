@@ -50,7 +50,6 @@ contract SimpleNFTEscrow is IERC721Receiver, ReentrancyGuard {
     error InactiveDeposit();
     error InvalidNFT();
     error ZeroAddress();
-    error MissingCriteria();
     error MetadataCheckFailed();
     error CriteriaNotMet();
 
@@ -61,7 +60,6 @@ contract SimpleNFTEscrow is IERC721Receiver, ReentrancyGuard {
         returns (uint256 depositId)
     {
         _validateNFT(nft);
-        if (bytes(requiredBallotId).length == 0) revert MissingCriteria();
         IERC721(nft).safeTransferFrom(msg.sender, address(this), tokenId);
 
         depositId = _nextId++;
@@ -138,17 +136,8 @@ contract SimpleNFTEscrow is IERC721Receiver, ReentrancyGuard {
     }
 
     function _checkCriteria(Deposit storage target, address takerNft, uint256 takerTokenId) internal view {
-        // Criteria are mandatory for this contract version.
-        if (bytes(target.requiredBallotId).length == 0) revert MissingCriteria();
-
-        // Read ballot + grade from the taker's NFT; revert if the NFT does not expose them.
-        string memory takerBallot;
+        // Read grade from the taker's NFT; revert if the NFT does not expose it.
         uint8 takerGrade;
-        try IBallotBoundERC721(takerNft).tokenToBallot(takerTokenId) returns (string memory b) {
-            takerBallot = b;
-        } catch {
-            revert MetadataCheckFailed();
-        }
         try IBallotBoundERC721(takerNft).tokenRarity(takerTokenId) returns (uint8 g) {
             takerGrade = g;
         } catch {
@@ -156,8 +145,7 @@ contract SimpleNFTEscrow is IERC721Receiver, ReentrancyGuard {
         }
 
         if (
-            keccak256(bytes(takerBallot)) != keccak256(bytes(target.requiredBallotId))
-                || takerGrade != target.requiredGrade
+            takerGrade != target.requiredGrade
         ) {
             revert CriteriaNotMet();
         }

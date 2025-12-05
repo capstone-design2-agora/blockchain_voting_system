@@ -35,10 +35,6 @@ const gradeLabel = (code?: number | null) => {
 };
 
 const matchesCriteria = (target: NftCardData, candidate: NftCardData) => {
-  if (target.requiredBallotId) {
-    if (!candidate.ballotId) return false;
-    if (target.requiredBallotId !== candidate.ballotId) return false;
-  }
   if (target.requiredGrade !== undefined && target.requiredGrade !== null) {
     if (candidate.rarityCode === undefined || candidate.rarityCode === null) return false;
     if (Number(target.requiredGrade) !== Number(candidate.rarityCode)) return false;
@@ -88,6 +84,10 @@ export default function NFTExchangePage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<"newest" | "oldest" | "tokenId">("newest");
   const [selectedMarketNFT, setSelectedMarketNFT] = useState<NftCardData | null>(null);
+  const [listingConfig, setListingConfig] = useState<{
+    nft: NftCardData;
+    requiredGrade: number;
+  } | null>(null);
   const metadataCache = useRef<Map<string, string>>(new Map());
 
   const mergedMarketListings = useMemo(() => {
@@ -361,19 +361,19 @@ export default function NFTExchangePage() {
       try {
         const wallet = detectedWallet;
         if (!wallet) return;
-      const tokens = await getRewardNFTs(wallet);
-      const mapped: NftCardData[] = tokens.map((t) => ({
-        id: String(t.tokenId),
-        ownerWallet: detectedWallet || undefined,
-        name: t.metadata?.name || `Reward NFT #${t.tokenId}`,
-        image: t.imageUrl || "",
-        rarity: t.rarity || "커먼",
-        rarityCode: t.rarityCode,
-        ballotId: t.ballotId,
-        tokenId: String(t.tokenId),
-        contract: REWARD_NFT_ADDR || "",
-      }));
-      setAvailableNfts(mapped);
+        const tokens = await getRewardNFTs(wallet);
+        const mapped: NftCardData[] = tokens.map((t) => ({
+          id: String(t.tokenId),
+          ownerWallet: detectedWallet || undefined,
+          name: t.metadata?.name || `Reward NFT #${t.tokenId}`,
+          image: t.imageUrl || "",
+          rarity: t.rarity || "커먼",
+          rarityCode: t.rarityCode,
+          ballotId: t.ballotId,
+          tokenId: String(t.tokenId),
+          contract: REWARD_NFT_ADDR || "",
+        }));
+        setAvailableNfts(mapped);
       } catch (error) {
         console.error("Failed to load wallet NFTs", error);
         showToast({
@@ -448,10 +448,33 @@ export default function NFTExchangePage() {
     setListedNfts([]);
   }, [detectedWallet]);
 
+  const openListingConfig = (nft: NftCardData) => {
+    const gradeDefault = nft.rarityCode ?? 0;
+    setListingConfig({
+      nft,
+      requiredGrade: gradeDefault,
+    });
+  };
+
+  const confirmListing = async () => {
+    if (!listingConfig) return;
+    const { nft, requiredGrade } = listingConfig;
+    const ballotId = nft.ballotId || "";
+    const ok = await handleListToMarket(nft, ballotId, requiredGrade);
+    if (ok) {
+      setListingConfig(null);
+    }
+  };
 
 
-  const handleListToMarket = async (nft: NftCardData) => {
+
+  const handleListToMarket = async (
+    nft: NftCardData,
+    requiredBallotId: string,
+    requiredGrade: number
+  ): Promise<boolean> => {
     setListing(true);
+    let success = false;
     try {
       const escrowAddress =
         SIMPLE_ESCROW_ADDRESS ||
@@ -486,12 +509,13 @@ export default function NFTExchangePage() {
         await approveTx.wait();
       }
 
-      if (!nft.ballotId) {
-        throw new Error("NFT의 ballot-id를 찾을 수 없습니다. 메타데이터를 다시 불러와 주세요.");
-      }
-      const requiredGrade = nft.rarityCode ?? 0;
-
-      const { depositId } = await depositToEscrow(nft.contract, nft.tokenId, nft.ballotId, requiredGrade);
+      const trimmedBallot = requiredBallotId.trim();
+      const { depositId } = await depositToEscrow(
+        nft.contract,
+        nft.tokenId,
+        trimmedBallot,
+        requiredGrade
+      );
 
       if (!depositId) {
         throw new Error("Deposited but depositId not found in receipt");
@@ -507,13 +531,14 @@ export default function NFTExchangePage() {
           depositId: depositIdStr,
           ownerWallet: ownerAddress,
           badge: "LISTED",
-          requiredBallotId: nft.ballotId,
+          requiredBallotId: trimmedBallot,
           requiredGrade,
           rarityCode: requiredGrade,
           rarity: gradeLabel(requiredGrade),
         },
       ]);
       showToast({ title: "마켓에 올렸습니다", description: `${nft.name}이(가) 교환 대기열에 추가됨` });
+      success = true;
     } catch (error: any) {
       console.error("listing failed", error);
       showToast({
@@ -524,6 +549,7 @@ export default function NFTExchangePage() {
     } finally {
       setListing(false);
     }
+    return success;
   };
 
   const handleWithdraw = (nft: NftCardData) => {
@@ -616,7 +642,7 @@ export default function NFTExchangePage() {
     if (!matchesCriteria(swapTarget, myNft)) {
       showToast({
         title: "조건 불일치",
-        description: "선택한 NFT가 대상의 ballot/등급 조건을 만족하지 않습니다.",
+        description: "선택한 NFT가 대상의 등급 조건을 만족하지 않습니다.",
         variant: "error",
       });
       return;
@@ -692,14 +718,14 @@ export default function NFTExchangePage() {
               <ArrowLeftRight size={20} />
             </div>
             <div>
-              <p className="nft-subtitle">NFT 거래소</p>
+
               <h1>NFT 거래소</h1>
 
             </div>
           </div>
           <div className="nft-exchange-actions">
             <button
-              className="nft-exchange-button nft-exchange-button--ghost"
+              className="nft-exchange-button"
               onClick={() => navigate("/my-nfts")}
             >
               내 컬렉션 보기
@@ -742,7 +768,17 @@ export default function NFTExchangePage() {
                 emptyText="지갑에 표시할 NFT가 없습니다."
                 actionLabel={listing ? "처리 중..." : "마켓에 올리기"}
                 actionIcon={<Upload size={16} />}
-                onAction={handleListToMarket}
+                onAction={openListingConfig}
+                renderAction={(nft) => (
+                  <button
+                    className="nft-exchange-button nft-exchange-button--full"
+                    onClick={() => openListingConfig(nft)}
+                    disabled={listing}
+                  >
+                    <Upload size={16} />
+                    <span>마켓에 올리기</span>
+                  </button>
+                )}
                 disabled={listing}
               />
             </div>
@@ -911,13 +947,10 @@ export default function NFTExchangePage() {
                     <span className="nft-modal-label">🏷️ 상태</span>
                     <span className="nft-modal-value">{selectedMarketNFT.badge || "마켓 등록"}</span>
                   </div>
-                  {selectedMarketNFT.requiredBallotId || selectedMarketNFT.requiredGrade !== null ? (
+                  {selectedMarketNFT.requiredGrade !== null ? (
                     <div className="nft-modal-info-item">
                       <span className="nft-modal-label">🎯 교환 조건</span>
-                      <span className="nft-modal-value">
-                        ballot {selectedMarketNFT.requiredBallotId || "무관"} / 등급{" "}
-                        {gradeLabel(selectedMarketNFT.requiredGrade)}
-                      </span>
+                      <span className="nft-modal-value">등급 {gradeLabel(selectedMarketNFT.requiredGrade)}</span>
                     </div>
                   ) : null}
                 </div>
@@ -952,6 +985,16 @@ export default function NFTExchangePage() {
           </div>
         </div>
       )}
+
+      {listingConfig ? (
+        <ListingCriteriaModal
+          config={listingConfig}
+          busy={listing}
+          onClose={() => setListingConfig(null)}
+          onChange={(next) => setListingConfig(next)}
+          onConfirm={confirmListing}
+        />
+      ) : null}
     </div>
   );
 }
@@ -966,6 +1009,43 @@ function AccessLoadingState() {
     </div>
   );
 }
+
+const rarityColorMap: Record<string, string> = {
+  "레전더리": "#f59e0b", // Amber 500 (Strong Gold)
+  "에픽": "#8b5cf6",     // Violet 500 (Strong Purple)
+  "레어": "#3b82f6",     // Blue 500 (Strong Blue)
+  "커먼": "#64748b",     // Slate 500 (Strong Gray)
+  "legendary": "#f59e0b",
+  "epic": "#8b5cf6",
+  "rare": "#3b82f6",
+  "common": "#64748b",
+  "Legendary": "#f59e0b",
+  "Epic": "#8b5cf6",
+  "Rare": "#3b82f6",
+  "Common": "#64748b",
+};
+
+const getRarityColor = (rarity: string | undefined) => {
+  if (!rarity) return rarityColorMap["커먼"];
+  // Handle "등급 X" format
+  if (rarity.startsWith("등급")) {
+    const code = parseInt(rarity.split(" ")[1]);
+    const labels = ["커먼", "레어", "에픽", "레전더리"];
+    const label = labels[code] || "커먼";
+    return rarityColorMap[label];
+  }
+
+  // Handle direct matches
+  if (rarityColorMap[rarity]) return rarityColorMap[rarity];
+
+  // Handle case-insensitive matches
+  const normalized = rarity.toLowerCase();
+  if (normalized.includes("legend")) return rarityColorMap["레전더리"];
+  if (normalized.includes("epic")) return rarityColorMap["에픽"];
+  if (normalized.includes("rare")) return rarityColorMap["레어"];
+
+  return rarityColorMap["커먼"];
+};
 
 function NftGrid({
   nfts,
@@ -993,53 +1073,109 @@ function NftGrid({
   }
   return (
     <div className="nft-card-grid">
-      {nfts.map((nft) => (
-        <article key={`${nft.id}-${nft.contract}`} className="nft-card">
-          <div
-            className="nft-card__image"
-            onClick={() => onCardClick?.(nft)}
-            style={{ cursor: onCardClick ? 'pointer' : 'default' }}
+      {nfts.map((nft) => {
+        const color = getRarityColor(nft.rarity);
+        return (
+          <article
+            key={`${nft.id}-${nft.contract}`}
+            className="nft-card"
+            style={{
+              '--rarity-color': color,
+              borderColor: color,
+              boxShadow: `0 0 20px -2px ${color}`
+            } as React.CSSProperties}
           >
-            <img src={nft.image || undefined} alt={nft.name} />
-            <span
-              className={`rarity-badge ${nft.rarity === "레전더리" || nft.rarity === "Legendary"
-                ? "rarity-badge--legendary"
-                : nft.rarity === "에픽" || nft.rarity === "Epic"
-                  ? "rarity-badge--epic"
-                  : nft.rarity === "레어" || nft.rarity === "Rare"
-                    ? "rarity-badge--rare"
-                    : "rarity-badge--common"
-                }`}
+            <div
+              className="nft-card__image"
+              onClick={() => onCardClick?.(nft)}
+              style={{ cursor: onCardClick ? 'pointer' : 'default' }}
             >
-              {nft.rarity}
-            </span>
-            {badge ? <span className="nft-chip nft-chip--secondary">{badge}</span> : null}
+              <img src={nft.image || undefined} alt={nft.name} />
+              {badge ? <span className="nft-chip nft-chip--secondary">{badge}</span> : null}
+            </div>
+            <div className="nft-card__body">
+              <p className="nft-card__title">{nft.name}</p>
+              {nft.requiredGrade !== undefined && nft.requiredGrade !== null ? (
+                <p className="nft-card__meta">조건: 등급 {gradeLabel(nft.requiredGrade)}</p>
+              ) : null}
+              {renderAction ? (
+                renderAction(nft)
+              ) : (
+                <button
+                  className="nft-exchange-button nft-exchange-button--full"
+                  onClick={() => onAction(nft)}
+                  disabled={disabled}
+                >
+                  {actionIcon}
+                  <span>{actionLabel}</span>
+                </button>
+              )}
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+function ListingCriteriaModal({
+  config,
+  busy,
+  onClose,
+  onChange,
+  onConfirm,
+}: {
+  config: { nft: NftCardData; requiredGrade: number };
+  busy: boolean;
+  onClose: () => void;
+  onChange: (next: { nft: NftCardData; requiredGrade: number }) => void;
+  onConfirm: () => void;
+}) {
+  const gradeOptions = rarityLabels.map((label, idx) => ({ value: idx, label }));
+
+  return (
+    <div className="listing-modal-overlay" onClick={onClose}>
+      <div className="listing-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="listing-modal__header">
+          <div>
+            <p className="nft-subtitle">교환 조건 설정</p>
+            <h3>{config.nft.name}</h3>
+            <p className="nft-hint">내가 받을 NFT의 등급만 선택하세요. Ballot은 검사하지 않습니다.</p>
           </div>
-          <div className="nft-card__body">
-            <p className="nft-card__title">{nft.name}</p>
-            <p className="nft-card__meta">
-              Token #{nft.tokenId} · <span className="mono">{nft.contract}</span>
-            </p>
-            {(nft.requiredBallotId || nft.requiredGrade !== undefined && nft.requiredGrade !== null) && (
-              <p className="nft-card__meta">
-                조건: ballot {nft.requiredBallotId || "불문"} / 등급 {gradeLabel(nft.requiredGrade)}
-              </p>
-            )}
-            {renderAction ? (
-              renderAction(nft)
-            ) : (
-              <button
-                className="nft-exchange-button nft-exchange-button--full"
-                onClick={() => onAction(nft)}
-                disabled={disabled}
-              >
-                {actionIcon}
-                <span>{actionLabel}</span>
-              </button>
-            )}
-          </div>
-        </article>
-      ))}
+          <button className="listing-modal__close" onClick={onClose} aria-label="닫기">
+            ×
+          </button>
+        </div>
+
+        <div className="listing-modal__content">
+          <label className="listing-modal__field">
+            <span>필수 등급</span>
+            <select
+              value={config.requiredGrade}
+              onChange={(e) => onChange({ ...config, requiredGrade: Number(e.target.value) })}
+            >
+              {gradeOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label} (코드 {opt.value})
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="listing-modal__actions">
+          <button className="nft-modal-btn nft-modal-btn-secondary" onClick={onClose} disabled={busy}>
+            취소
+          </button>
+          <button
+            className="nft-modal-btn nft-modal-btn-primary"
+            onClick={onConfirm}
+            disabled={busy}
+          >
+            {busy ? "예치 중..." : "이 조건으로 올리기"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1066,7 +1202,7 @@ function SwapPicker({
             <p className="nft-subtitle">스왑 대상</p>
             <h3>{target.name}</h3>
             <p className="nft-hint">
-              조건: ballot {target.requiredBallotId || "불문"} / 등급 {gradeLabel(target.requiredGrade)}
+              조건: 등급 {gradeLabel(target.requiredGrade)}
             </p>
           </div>
           <button className="swap-picker__close" onClick={onClose} aria-label="닫기">
@@ -1083,9 +1219,7 @@ function SwapPicker({
                   <img src={nft.image} alt={nft.name} />
                   <div>
                     <p className="swap-picker__title">{nft.name}</p>
-                    <p className="nft-card__meta">
-                      Token #{nft.tokenId} · <span className="mono">{nft.contract}</span>
-                    </p>
+
                   </div>
                 </div>
                 <button className="nft-exchange-button" disabled={loading} onClick={() => onSwap(nft)}>

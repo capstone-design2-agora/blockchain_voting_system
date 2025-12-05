@@ -21,57 +21,78 @@
         #020617;
     color: var(--nft-text-main);
     font-family: 'Inter', system-ui, sans-serif;
-    padding: 40px 20px;
+    padding: 0;
 }
 
 .nft-container {
     max-width: 1400px;
     margin: 0 auto;
+    padding: 20px;
 }
 
 /* Header */
+/* Header */
 .nft-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    margin-bottom: 60px;
-    padding-bottom: 20px;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    backdrop-filter: blur(20px);
+    background: rgba(2, 6, 23, 0.8);
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    margin-bottom: 40px;
+    padding: 0;
 }
 
-.nft-header-left {
-    flex: 1;
+.nft-header-content {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 1.5rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.nft-header-title-section {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.nft-header-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    background: var(--nft-gradient-main);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.4);
+    color: white;
 }
 
 .nft-title {
-    font-size: 3rem;
+    font-size: 2rem;
     font-weight: 800;
-    margin: 0 0 16px;
+    margin: 0;
     background: linear-gradient(to right, #fff, #cbd5e1);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     letter-spacing: -0.02em;
+    line-height: 1;
 }
 
-.nft-wallet-info {
-    display: inline-flex;
-    align-items: center;
-    gap: 12px;
-    padding: 8px 16px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 999px;
+.nft-subtitle {
+    color: var(--nft-primary);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 0.875rem;
+    margin-bottom: 0.25rem;
 }
 
-.nft-wallet-badge {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.9rem;
-    color: var(--nft-text-muted);
-}
-
-.nft-header-right {
+.nft-header-actions {
     display: flex;
-    gap: 12px;
+    gap: 1rem;
 }
 
 .nft-button {
@@ -178,21 +199,21 @@
 
 /* Progress Section */
 .progress-section {
-    margin-bottom: 60px;
+    margin-bottom: 20px;
     background: rgba(15, 23, 42, 0.6);
-    border-radius: 24px;
-    padding: 32px;
+    border-radius: 16px;
+    padding: 16px;
     border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .section-title {
-    font-size: 1.5rem;
+    font-size: 1.2rem;
     font-weight: 700;
-    margin: 0 0 24px;
+    margin: 0 0 16px;
     color: white;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
 }
 
 .progress-bar-container {
@@ -236,8 +257,8 @@
 .badges-grid {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
-    gap: 20px;
-    margin-bottom: 60px;
+    gap: 12px;
+    margin-bottom: 20px;
 }
 
 @media (max-width: 1200px) {
@@ -256,7 +277,7 @@
     background: rgba(15, 23, 42, 0.6);
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 20px;
-    padding: 24px 16px;
+    padding: 16px 8px;
     text-align: center;
     transition: all 0.3s ease;
     position: relative;
@@ -279,8 +300,8 @@
 }
 
 .badge-icon {
-    font-size: 2.5rem;
-    margin-bottom: 12px;
+    font-size: 2rem;
+    margin-bottom: 8px;
     display: block;
     filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
 }
@@ -309,8 +330,8 @@
 /* NFT Grid - 3D Cards */
 .nft-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 32px;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
     perspective: 1000px;
 }
 
@@ -321,14 +342,14 @@
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
     cursor: pointer;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    box-shadow: var(--nft-shadow-card);
+    border: 2px solid var(--rarity-color, rgba(255, 255, 255, 0.1));
+    box-shadow: 0 0 20px -2px var(--rarity-color, rgba(255, 255, 255, 0.1));
 }
 
 .nft-card:hover {
     transform: translateY(-10px) rotateX(2deg);
-    box-shadow: var(--nft-shadow-hover);
-    border-color: rgba(139, 92, 246, 0.4);
+    box-shadow: 0 0 40px 5px var(--rarity-color, rgba(139, 92, 246, 0.6));
+    border-color: var(--rarity-color, rgba(139, 92, 246, 0.8));
 }
 
 .nft-image-container {
@@ -386,8 +407,10 @@
 }
 
 .nft-card-header {
-    padding: 8px 8px 16px;
-    text-align: center;
+    .nft-card-header {
+        padding: 8px 8px 8px;
+        text-align: center;
+    }
 }
 
 .nft-token-id {

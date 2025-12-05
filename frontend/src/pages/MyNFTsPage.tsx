@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router";
-import { getWeb3, onAccountsChanged } from "../lib/web3";
+import { getWeb3, onAccountsChanged, hasBrowserWallet, disconnectWallet } from "../lib/web3";
 import { getRewardNFTs } from "../lib/sbt";
 import useEmailVerificationStore from "../stores/emailVerificationStore";
 import "./MyNFTsPage.css";
@@ -78,42 +78,32 @@ export default function MyNFTsPage() {
     }, [redirectToVerification]);
 
     const handleDisconnect = async () => {
-        try {
-            // 최신 MetaMask에서 지원하는 wallet_revokePermissions 시도
-            if ((window as any).ethereum) {
-                try {
-                    const result = await (window as any).ethereum.request({
-                        method: 'wallet_revokePermissions',
-                        params: [{ eth_accounts: {} }]
-                    });
-                } catch (revokeError: any) {
-                    // wallet_revokePermissions를 지원하지 않는 경우
-                    // 사용자에게 수동 연결 해제 안내
-                    if (!window.confirm(
-                        "지갑 연결을 해제하시겠습니까?\n\n" +
-                        "자동 연결 해제가 지원되지 않습니다.\n" +
-                        "MetaMask에서 직접 연결을 해제하려면:\n" +
-                        "1. MetaMask 확장 프로그램 클릭\n" +
-                        "2. 연결된 사이트 관리\n" +
-                        "3. 이 사이트 연결 해제"
-                    )) {
-                        return; // 사용자가 취소한 경우
-                    }
-                }
-            }
-
-            // 로컬 세션 데이터 정리
+        const clearAndRedirect = () => {
+            setWalletAddress(null);
+            setNfts([]);
+            setSelectedNFT(null);
             sessionStorage.clear();
             localStorage.removeItem("walletAddress");
-
-            // Auth 페이지로 이동
             redirectToVerification();
+        };
+
+        if (!window.confirm(
+            "지갑 연결을 해제하시겠습니까?\n\nMetaMask에서 직접 연결을 해제하려면:\n1. MetaMask 확장 프로그램 클릭\n2. 연결된 사이트 관리\n3. 이 사이트 연결 해제"
+        )) {
+            return;
+        }
+
+        if (!hasBrowserWallet()) {
+            clearAndRedirect();
+            return;
+        }
+
+        try {
+            await disconnectWallet();
         } catch (error) {
             console.error("❌ Disconnect error:", error);
-            // 오류 발생 시에도 세션 정리 후 이동
-            sessionStorage.clear();
-            localStorage.removeItem("walletAddress");
-            redirectToVerification();
+        } finally {
+            clearAndRedirect();
         }
     };
 
@@ -137,14 +127,14 @@ export default function MyNFTsPage() {
 
     // NFT 레어도 표시 (온체인 rarity 값 사용)
     const rarityColorMap: Record<string, string> = {
-        "레전더리": "#fbbf24",
-        "에픽": "#a78bfa",
-        "레어": "#60a5fa",
-        "커먼": "#94a3b8",
-        "legendary": "#fbbf24",
-        "epic": "#a78bfa",
-        "rare": "#60a5fa",
-        "common": "#94a3b8",
+        "레전더리": "#f59e0b", // Amber 500 (Strong Gold)
+        "에픽": "#8b5cf6",     // Violet 500 (Strong Purple)
+        "레어": "#3b82f6",     // Blue 500 (Strong Blue)
+        "커먼": "#64748b",     // Slate 500 (Strong Gray)
+        "legendary": "#f59e0b",
+        "epic": "#8b5cf6",
+        "rare": "#3b82f6",
+        "common": "#64748b",
     };
 
     const getRarityDisplay = (rarity: string | number | undefined) => {
@@ -186,30 +176,23 @@ export default function MyNFTsPage() {
     };
 
     if (loading) {
-        return (
-            <div className="nft-collection-page">
-                <div className="nft-loading">
-                    <div className="loading-spinner"></div>
-                    <p className="loading-text">NFT 컬렉션 로딩 중...</p>
-                </div>
-            </div>
-        );
+        return <div className="loading-container">Loading...</div>;
     }
 
     return (
         <div className="nft-collection-page">
-            <div className="nft-container">
-                {/* Header */}
-                <header className="nft-header">
-                    <div className="nft-header-left">
-                        <h1 className="nft-title">🎨 NFT 컬렉션</h1>
-                        <div className="nft-wallet-info">
-                            <span className="nft-wallet-badge">
-                                {walletAddress?.substring(0, 6)}...{walletAddress?.substring(walletAddress.length - 4)}
-                            </span>
+            {/* Header */}
+            <header className="nft-header">
+                <div className="nft-header-content">
+                    <div className="nft-header-title-section">
+                        <div className="nft-header-icon">
+                            <span style={{ fontSize: '1.5rem' }}>🎨</span>
+                        </div>
+                        <div>
+                            <h1 className="nft-title">NFT 컬렉션</h1>
                         </div>
                     </div>
-                    <div className="nft-header-right">
+                    <div className="nft-header-actions">
                         <button className="nft-button nft-button--primary" onClick={() => navigate("/nft-exchange")}>
                             🔁 NFT 거래소
                         </button>
@@ -220,31 +203,10 @@ export default function MyNFTsPage() {
                             🔌 연결 해제
                         </button>
                     </div>
-                </header>
-
-                {/* Stats Dashboard */}
-                <div className="nft-stats">
-                    <div className="stat-card">
-                        <span className="stat-icon">💎</span>
-                        <div className="stat-value">{nfts.length}</div>
-                        <div className="stat-label">보유 NFT</div>
-                    </div>
-                    <div className="stat-card">
-                        <span className="stat-icon">🏆</span>
-                        <div className="stat-value">{earnedBadges}/{totalBadges}</div>
-                        <div className="stat-label">획득 뱃지</div>
-                    </div>
-                    <div className="stat-card">
-                        <span className="stat-icon">🎯</span>
-                        <div className="stat-value">{nfts.length}</div>
-                        <div className="stat-label">투표 참여 횟수</div>
-                    </div>
-                    <div className="stat-card">
-                        <span className="stat-icon">⚡</span>
-                        <div className="stat-value">{Math.round(progressPercentage)}%</div>
-                        <div className="stat-label">컬렉션 진행도</div>
-                    </div>
                 </div>
+            </header>
+
+            <div className="nft-container">
 
                 {/* Progress Section */}
                 {nextBadge && (
@@ -266,7 +228,7 @@ export default function MyNFTsPage() {
 
                 {/* Badges Section */}
                 <div className="badges-section">
-                    <h2 className="section-title">🏆 업적 뱃지</h2>
+                    <h2 className="section-title">🏆 업적 뱃지 <span style={{ fontSize: '0.8em', opacity: 0.8, marginLeft: '8px' }}>({earnedBadges}/{totalBadges})</span></h2>
                     <div className="badges-grid">
                         {badges.map(badge => (
                             <div key={badge.id} className={`badge-card ${badge.earned ? 'earned' : 'locked'}`}>
@@ -281,13 +243,11 @@ export default function MyNFTsPage() {
 
                 {/* NFT Grid */}
                 {nfts.length === 0 ? (
-                    <div className="nft-empty-state">
-                        <div className="empty-icon">📭</div>
-                        <h2 className="empty-title">아직 NFT가 없습니다</h2>
-                        <p className="empty-description">
-                            투표에 참여하여 첫 번째 NFT를 받고 컬렉션을 시작하세요!
-                        </p>
-                        <button className="empty-cta" onClick={() => navigate("/voting")}>
+                    <div className="empty-state">
+                        <div className="empty-icon">🖼️</div>
+                        <h3>아직 보유한 NFT가 없습니다</h3>
+                        <p>투표에 참여하고 첫 NFT를 획득해보세요!</p>
+                        <button className="nft-button nft-button--primary" onClick={() => navigate("/voting")}>
                             첫 투표 참여하기
                         </button>
                     </div>
@@ -298,7 +258,15 @@ export default function MyNFTsPage() {
                             {nfts.map((nft) => {
                                 const rarity = getRarityDisplay(nft.rarity ?? nft.rarityCode);
                                 return (
-                                    <div key={nft.tokenId} className="nft-card">
+                                    <div
+                                        key={nft.tokenId}
+                                        className="nft-card"
+                                        style={{
+                                            '--rarity-color': rarity.color,
+                                            borderColor: rarity.color,
+                                            boxShadow: `0 0 20px -2px ${rarity.color}`
+                                        } as React.CSSProperties}
+                                    >
                                         {/* NFT 이미지 */}
                                         {nft.imageUrl && (
                                             <div
@@ -321,9 +289,6 @@ export default function MyNFTsPage() {
                                         )}
                                         <div className="nft-card-header">
                                             <h3 className="nft-token-id">{nft.metadata?.name || `NFT #${nft.tokenId}`}</h3>
-                                            <span className="nft-rarity" style={{ color: rarity.color }}>
-                                                {rarity.name}
-                                            </span>
                                         </div>
                                     </div>
                                 );

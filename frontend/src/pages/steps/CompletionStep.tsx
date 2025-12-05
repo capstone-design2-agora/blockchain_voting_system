@@ -23,11 +23,13 @@ export default function CompletionStep() {
             </div>
 
             <div className="success-section">
-                <div className="success-icon">🎉</div>
-                <p className="success-message">
-                    축하합니다! 이메일 인증이 완료되었고,<br />
-                    Citizen SBT가 성공적으로 발급되었습니다.
-                </p>
+                <div className="success-message-container">
+                    <div className="success-icon">🎉</div>
+                    <p className="success-message">
+                        축하합니다! 이메일 인증이 완료되었고,<br />
+                        Citizen SBT가 성공적으로 발급되었습니다.
+                    </p>
+                </div>
 
                 {email && (
                     <div className="verified-email">

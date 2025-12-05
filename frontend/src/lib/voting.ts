@@ -115,10 +115,22 @@ export async function castVote(
     throw new Error(preflightError?.message || "Vote preflight failed");
   }
 
+  // Add a buffered gas limit to avoid OOG when the node underestimates storage writes
+  let gasLimit = 350000; // reasonable fallback for mint + storage writes
+  try {
+    const estimate = await contract.methods.vote(proposalId).estimateGas({ from });
+    const buffered = Math.floor(Number(estimate) * 1.3);
+    if (Number.isFinite(buffered) && buffered > gasLimit) {
+      gasLimit = buffered;
+    }
+  } catch (estimateError) {
+    console.warn("Gas estimation failed, using fallback limit", estimateError);
+  }
+
   const gasPrice = await web3.eth.getGasPrice();
   const receipt = await contract.methods
     .vote(proposalId)
-    .send({ from, gasPrice: String(gasPrice) });
+    .send({ from, gas: String(gasLimit), gasPrice: String(gasPrice) });
 
   return receipt as TransactionReceipt;
 }
