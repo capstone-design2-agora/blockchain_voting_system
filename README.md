@@ -229,7 +229,7 @@ cd blockchain_contracts
 ```bash
 cd ../frontend
 npm install
-npm start  # http://localhost:3000
+npm start
 ```
 
 ### 방법 2: 단계별 수동 설정
@@ -293,16 +293,16 @@ node scripts/deploy_sbt_system.js
 cd ../frontend
 
 npm install
-npm start  # http://localhost:3000 에서 실행
+npm start
 ```
 
 **MetaMask 설정:**
 
 1. 네트워크 추가:
    - 네트워크 이름: `Quorum Test Network`
-   - RPC URL: `http://localhost:9545` (또는 `http://localhost:10545` if using Tessera)
    - Chain ID: `1337`
    - 통화: `ETH`
+   - RPC URL: 배포된 네트워크의 RPC 엔드포인트 주소
 
 2. 테스트 계정 가져오기:
    - MetaMask: "계정 가져오기" → "Private Key 사용"
@@ -387,13 +387,13 @@ node scripts/update_verifier.js --new-verifier <0x새로운_주소>
 
 ```bash
 # frontend/.env 또는 frontend/.env.local에 다음 추가:
-REACT_APP_RPC=http://localhost:9545
+REACT_APP_RPC=<배포된_RPC_엔드포인트>
 REACT_APP_CITIZEN_SBT_ADDRESS=0x...         # sbt_deployment.json에서 복사
 REACT_APP_VOTING_CONTRACT_ADDRESS=0x...
 REACT_APP_REWARD_NFT_ADDRESS=0x...
 REACT_APP_ESCROW_ADDRESS=0x...              # NFT 거래용
 REACT_APP_VERIFIER_ADDRESS=0x...            # CitizenSBT의 검증자
-REACT_APP_API_BASE_URL=http://localhost:3001  # API 서버 (선택)
+REACT_APP_API_BASE_URL=<배포된_API_서버_URL>
 ```
 
 ### 배포 정보 확인
@@ -622,7 +622,7 @@ NFT 거래 이벤트를 자동으로 추적하려면 escrow_indexer를 실행하
 ```bash
 # 환경 변수 설정
 cat > scripts/indexer.env << EOF
-RPC_URL=http://localhost:9545
+RPC_URL=<배포된_RPC_엔드포인트>
 SIMPLE_ESCROW_ADDRESS=0x...  # sbt_deployment.json에서 NFTEscrow 주소 복사
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_KEY=your-service-role-key
@@ -670,7 +670,7 @@ cat blockchain_contracts/artifacts/sbt_deployment.json | jq '.contracts'
 ### RPC 연결 테스트
 
 ```bash
-curl -X POST http://localhost:9545 \
+curl -X POST <RPC_엔드포인트> \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
 ```
@@ -679,7 +679,7 @@ curl -X POST http://localhost:9545 \
 
 ```bash
 1. MetaMask 리셋
-2. 네트워크 재추가 (RPC: http://localhost:9545, Chain ID: 1337)
+2. 네트워크 재추가 (배포된 RPC 엔드포인트 및 Chain ID: 1337)
 3. 계정 재가져오기
 ```
 
