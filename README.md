@@ -30,6 +30,12 @@ npm start
 
 ---
 
+## 📹 시연 영상
+
+**[유튜브 시연 동영상](https://www.youtube.com/watch?v=6SxlvCTTfl4)** - 전체 시스템 실행 및 투표 프로세스 데모
+
+---
+
 ## 🔗 기반 프로젝트
 
 - [Quorum Dev Quickstart](https://github.com/ConsenSys/quorum-dev-quickstart) - Docker 기반 멀티 노드 블록체인 네트워크

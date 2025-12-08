@@ -128,6 +128,9 @@ secrets.*
 keystore/
 wallets/
 
+# Frontend config (environment-specific, auto-generated)
+frontend/public/config.json
+
 # Docker / container state
 docker-data/
 docker-volumes/
@@ -160,3 +163,4 @@ network/smart_contracts/artifacts/
 network/smart_contracts/node_modules/
 quorum-besu-network/.quorumDevQuickstart.lock
 .ngrok-tunnel
+scripts/.escrow_indexer_state.json
