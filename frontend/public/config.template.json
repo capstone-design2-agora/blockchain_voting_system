@@ -1,0 +1,14 @@
+{
+    "CITIZEN_SBT_ADDRESS": "<deployed-citizen-sbt-address>",
+    "VOTING_CONTRACT_ADDRESS": "<deployed-voting-contract-address>",
+    "VOTING_CONTRACT_ADDRESSES": [
+        "<deployed-voting-contract-address>"
+    ],
+    "REWARD_NFT_ADDRESS": "<deployed-reward-nft-address>",
+    "SIMPLE_ESCROW_ADDRESS": "<deployed-escrow-address>",
+    "VERIFIER_ADDRESS": "<deployed-verifier-address>",
+    "RPC_URL": "http://localhost:9545",
+    "CHAIN_ID": "0x539",
+    "CHAIN_NAME": "Quorum Local",
+    "EXPECTED_VOTERS": 1000
+}
