@@ -584,7 +584,7 @@ cat blockchain_contracts/artifacts/sbt_deployment.json
 cat blockchain_contracts/artifacts/sbt_deployment.json | grep -A 2 "CitizenSBT"
 ```
 
-## � 주요 파일
+## 🧩 주요 파일
 
 ### 스마트 컨트랙트
 - `blockchain_contracts/contracts/CitizenSBT.sol`: 신원 검증 SBT
